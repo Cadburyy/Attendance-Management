@@ -10,7 +10,7 @@ use App\Http\Controllers\WeightController;
 use App\Http\Controllers\MutationController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SettingsController;
-
+use App\Http\Controllers\AbsenceController;
 
 Route::get('/', function () {
     if (Auth::check()) {
@@ -20,6 +20,8 @@ Route::get('/', function () {
 });
 
 Auth::routes();
+
+Route::resource('absences', AbsenceController::class)->only(['create', 'store']);
 
 Route::get('/home', [HomeController::class, 'index'])->name('home');
 
@@ -49,4 +51,6 @@ Route::middleware(['auth'])->group(function () {
     
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
+    
+    Route::get('/absences', [AbsenceController::class, 'index'])->name('absences.index');
 });
