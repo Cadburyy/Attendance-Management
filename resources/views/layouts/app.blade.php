@@ -7,7 +7,7 @@ $settings = cache()->remember('app_settings', 60, function () {
     return Setting::pluck('value', 'key')->toArray();
 });
 
-$brand      = $settings['brand_name'] ?? 'Citra Nugerah Karya';
+$brand      = $settings['brand_name'] ?? 'Company';
 $font       = $settings['font'] ?? 'Nunito';
 
 $logoPath = $settings['logo_path'] ?? '';
@@ -15,7 +15,7 @@ $logoPath = str_replace('\\', '/', $logoPath);
 
 $logoUrl = !empty($logoPath)
     ? asset('storage/'.$logoPath)
-    : asset('images/cnk.png');
+    : asset('images/logo.png');
 
 $faviconPath = $settings['favicon_path'] ?? '';
 $faviconPath = str_replace('\\', '/', $faviconPath);
@@ -85,10 +85,10 @@ function getDropdownBgColor($bgColor) {
     return $luminance > 0.5 ? '#e9ecef' : '#212529';
 }
 
-$bgColor              = $settings['bg_color'] ?? '#f8f9fa';
-$navBgColor           = $settings['nav_bg_color'] ?? '#ffffff';
+$bgColor              = '#f8f9fa';
+$navBgColor           = '#0d3b66';
 $bgTextColor          = getTextColor($bgColor);
-$navTextColor         = getTextColor($navBgColor);
+$navTextColor         = '#ffffff';
 $cardBgColor          = getCardBgColor($bgColor);
 $cardTextColor        = getTextColor($cardBgColor);
 $dropdownBgColor      = getDropdownBgColor($bgColor);
@@ -114,7 +114,7 @@ $dropdownTextColor    = getTextColor($dropdownBgColor);
             --bg: {{ $bgColor }};
             --text: {{ $bgTextColor }};
             --surface: {{ $navBgColor }};
-            --nav-text: {{ $navTextColor }};
+            --nav-text: #ffffff;
             --card-surface: {{ $cardBgColor }};
             --card-text: {{ $cardTextColor }};
             --dropdown-surface: {{ $dropdownBgColor }};
@@ -127,28 +127,209 @@ $dropdownTextColor    = getTextColor($dropdownBgColor);
             background-color: var(--bg);
             color: var(--text);
             font-family: '{{ $font }}', system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+            margin: 0;
+            padding: 0;
         }
 
-        .navbar-brand,
-        .navbar-brand span,
-        .navbar .nav-link,
-        .dropdown-item {
-            color: var(--nav-text) !important;
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            background-color: var(--surface);
+            color: var(--nav-text);
+            z-index: 1030;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
         }
 
-        .navbar.navbar-light.bg-white,
-        .navbar-collapse {
-            background-color: var(--surface) !important;
-            color: var(--text) !important;
+        .sidebar-header {
+            padding: 20px 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        .dropdown-menu {
-            background-color: var(--dropdown-surface) !important;
-            color: var(--dropdown-text) !important;
+        .sidebar-header img {
+            height: 40px;
+            width: 40px;
+            border-radius: 4px;
         }
 
-        .dropdown-item {
-            color: var(--dropdown-text) !important;
+        .sidebar-brand {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--nav-text);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+            list-style: none;
+            margin: 0;
+        }
+
+        .sidebar-nav .nav-item {
+            margin: 0;
+        }
+
+        .sidebar-nav .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            color: var(--nav-text);
+            text-decoration: none;
+            font-size: 15px;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .sidebar-nav .nav-link:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .sidebar-nav .nav-link.active {
+            background-color: rgba(255,255,255,0.2);
+            border-left: 3px solid #ef4444;
+            padding-left: 17px;
+        }
+
+        .sidebar-nav .nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-menu {
+            position: relative;
+        }
+
+        .user-menu-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background-color: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 4px;
+            color: var(--nav-text);
+            cursor: pointer;
+            width: 100%;
+            font-size: 14px;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .user-menu-toggle:hover {
+            background-color: rgba(255,255,255,0.15);
+        }
+
+        .user-menu-toggle i {
+            width: 18px;
+        }
+
+        .user-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--surface);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            list-style: none;
+            margin: 0;
+            padding: 8px 0;
+            display: none;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .user-dropdown.show {
+            display: flex;
+        }
+
+        .user-dropdown .dropdown-item {
+            padding: 10px 16px;
+            color: var(--nav-text);
+            text-decoration: none;
+            font-size: 14px;
+            transition: background-color 0.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            border: none;
+            text-align: left;
+            width: 100%;
+            background: none;
+        }
+
+        .user-dropdown .dropdown-item:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .user-dropdown .dropdown-divider {
+            margin: 6px 0;
+            border: 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-dropdown .dropdown-item i {
+            width: 16px;
+        }
+
+        main {
+            margin-left: 280px;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 0;
+                transition: width 0.3s ease-in-out;
+            }
+
+            .sidebar.show {
+                width: 280px;
+            }
+
+            main {
+                margin-left: 0;
+            }
+
+            .sidebar-toggle {
+                position: fixed;
+                top: 15px;
+                left: 15px;
+                z-index: 1025;
+                background-color: var(--surface);
+                border: none;
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 18px;
+                display: block;
+            }
+
+            main {
+                padding-top: 60px;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .sidebar-toggle {
+                display: none;
+            }
         }
 
         .card {
@@ -161,18 +342,9 @@ $dropdownTextColor    = getTextColor($dropdownBgColor);
             border-bottom: 1px solid var(--border) !important;
         }
 
-        .fixed-blur-navbar {
+        #loading-bar {
             position: fixed;
             top: 0;
-            width: 100%;
-            z-index: 1030;
-            backdrop-filter: blur(5px);
-            background-color: {{ hexToRgba($navBgColor, 0.8) }};
-        }
-
-        #loading-bar {
-            position: absolute;
-            bottom: 0;
             left: 0;
             height: 3px;
             width: 0;
@@ -180,184 +352,132 @@ $dropdownTextColor    = getTextColor($dropdownBgColor);
             transition: width 0.3s ease-in-out, opacity 0.5s ease-in-out;
             z-index: 1031;
         }
-
-        .navbar-nav .nav-link {
-            position: relative;
-            padding-bottom: 12px;
-        }
-
-        .navbar-nav .nav-link::before,
-        .navbar-nav .nav-link::after {
-            content: '';
-            position: absolute;
-            bottom: 5px;
-            left: 0;
-            height: 2px;
-            width: 0;
-            transition: width 0.3s ease-in-out;
-        }
-
-        .navbar-nav .nav-link::before {
-            background-color: #ef4444;
-            bottom: 7px;
-        }
-
-        .navbar-nav .nav-link:hover::before {
-            width: 62.5%;
-        }
-
-        .navbar-nav .nav-link:hover::after {
-            width: 37.5%;
-        }
-
-        @media (max-width: 767px) {
-            .navbar-collapse {
-                background-color: {{ hexToRgba($navBgColor, 0.95) }};
-                padding: 1rem;
-                border-radius: 0.75rem;
-                margin-top: 0.5rem;
-                animation: slideDown 0.3s ease-in-out;
-            }
-
-            .navbar-nav .nav-item {
-                border-bottom: 1px solid var(--border);
-            }
-
-            .navbar-nav .nav-item:last-child {
-                border-bottom: none;
-            }
-
-            .navbar-nav .nav-link {
-                padding: 0.75rem 1rem;
-                font-weight: 500;
-                transition: background-color 0.2s ease-in-out;
-            }
-
-            .navbar-nav .nav-link:hover {
-                background-color: #d1d5db;
-                border-radius: 0.5rem;
-                transform: translateX(5px);
-            }
-
-            .dropdown-menu {
-                background-color: var(--dropdown-surface) !important;
-                border: none !important;
-            }
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
     </style>
 </head>
 
 <body>
     <div id="app">
-        <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm fixed-blur-navbar">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center" href="{{ url('/') }}">
-                    <img src="{{ $logoUrl }}" alt="Logo" style="height: 30px;">
-                </a>
-                <span class="ms-2 align-items-center">{{ $brand }}</span>
+        <button class="sidebar-toggle" id="sidebarToggle">
+            <i class="fas fa-bars"></i>
+        </button>
 
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
-                    aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="{{ __('Toggle navigation') }}">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="{{ $logoUrl }}" alt="Logo">
+                <div class="sidebar-brand">{{ $brand }}</div>
+            </div>
 
-                <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                    <ul class="navbar-nav me-auto"></ul>
+            <ul class="sidebar-nav">
+                @guest
+                    @if (Route::has('login'))
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('login') }}">
+                                <i class="fas fa-sign-in-alt"></i> Login
+                            </a>
+                        </li>
+                    @endif
+                @else
+                    <li class="nav-item">
+                        <a class="nav-link {{ Route::is('home') ? 'active' : '' }}" href="{{ route('home') }}">
+                            <i class="fas fa-home"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ Route::is('absences.*') ? 'active' : '' }}" href="{{ route('absences.index') }}">
+                            <i class="fas fa-file-alt"></i> Absensi
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ Route::is('users.*') ? 'active' : '' }}" href="{{ route('users.index') }}">
+                            <i class="fas fa-users"></i> Pekerja
+                        </a>
+                    </li>
+                @endguest
+            </ul>
 
-                    <ul class="navbar-nav ms-auto">
-                        @guest
-                            @if (Route::has('login'))
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ route('login') }}">{{ __('Login') }}</a>
-                                </li>
-                            @endif
-                        @else
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('home') }}">Home</a>
-                            </li>
-                            @can('item')
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('items.index') }}">Produksi</a>
-                            </li>
-                            @endcan
-                            @can('mutation')
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('mutations.index') }}">Mutasi Barang</a>
-                            </li>
-                            @endcan
-                            @can('sale')
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('sales.index') }}">Penjualan</a>
-                            </li>
-                            @endcan
-                            @can('weight')
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('weights.index') }}">Data Berat</a>
-                            </li>
-                            @endcan
-
-                            <li class="nav-item dropdown">
-                                <a id="navbarDropdown" class="nav-link dropdown-toggle" href="#" role="button"
-                                    data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
-                                    {{ Auth::user()->name }}
-                                </a>
-
-                                <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                                    @can('setting')
-                                    <a class="dropdown-item" href="{{ route('settings.index') }}">Settings</a>
-                                    @endcan
-
-                                    <a class="dropdown-item" href="{{ route('logout') }}"
-                                        onclick="event.preventDefault();document.getElementById('logout-form').submit();">
-                                        {{ __('Logout') }}
-                                    </a>
-
-                                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                                        @csrf
-                                    </form>
-                                </div>
-                            </li>
-                        @endguest
+            @auth
+            <div class="sidebar-footer">
+                <div class="user-menu">
+                    <button class="user-menu-toggle" id="userMenuToggle">
+                        <i class="fas fa-user-circle"></i>
+                        <span>{{ Auth::user()->name }}</span>
+                    </button>
+                    <ul class="user-dropdown" id="userDropdown">
+                        <li>
+                            <a class="dropdown-item" href="{{ route('settings.index') }}">
+                                <i class="fas fa-cog"></i> Settings
+                            </a>
+                        </li>
+                        @can('manage roles')
+                        <li>
+                            <a class="dropdown-item" href="{{ route('roles.index') }}">
+                                <i class="fas fa-shield-alt"></i> Roles
+                            </a>
+                        </li>
+                        @endcan
+                        <li>
+                            <a class="dropdown-item" href="{{ route('attendances.index') }}">
+                                <i class="fas fa-users-check"></i> Attendance
+                            </a>
+                        </li>
+                        <li class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="{{ route('logout') }}"
+                                onclick="event.preventDefault();document.getElementById('logout-form').submit();">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                                @csrf
+                            </form>
+                        </li>
                     </ul>
                 </div>
             </div>
-            <div id="loading-bar"></div>
-        </nav>
+            @endauth
+        </aside>
 
-        <main class="py-4 mt-5">
+        <main>
             <div class="container-fluid">
-                <div class="row justify-content-center">
-                    <div class="col-md-12">
-                        <div>
-                            <div class="card-body">
-                                @yield('content')
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                @yield('content')
             </div>
         </main>
     </div>
 
+    <div id="loading-bar"></div>
+
     <script>
-        const loadingBar=document.getElementById('loading-bar');
-        document.addEventListener('DOMContentLoaded',function(){
-            loadingBar.style.width='90%';
+        const loadingBar = document.getElementById('loading-bar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        const userMenuToggle = document.getElementById('userMenuToggle');
+        const userDropdown = document.getElementById('userDropdown');
+
+        document.addEventListener('DOMContentLoaded', function(){
+            loadingBar.style.width = '90%';
         });
-        window.addEventListener('load',function(){
-            loadingBar.style.width='100%';
-            loadingBar.style.opacity='0';
+
+        window.addEventListener('load', function(){
+            loadingBar.style.width = '100%';
+            loadingBar.style.opacity = '0';
+        });
+
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', function(){
+                sidebar.classList.toggle('show');
+            });
+        }
+
+        if (userMenuToggle) {
+            userMenuToggle.addEventListener('click', function(e){
+                e.stopPropagation();
+                userDropdown.classList.toggle('show');
+            });
+        }
+
+        document.addEventListener('click', function(e){
+            if (userDropdown && !userDropdown.contains(e.target) && !userMenuToggle.contains(e.target)) {
+                userDropdown.classList.remove('show');
+            }
         });
     </script>
 </body>

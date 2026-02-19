@@ -5,12 +5,9 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ItemController;
-use App\Http\Controllers\WeightController;
-use App\Http\Controllers\MutationController;
-use App\Http\Controllers\SaleController;
-use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AbsenceController;
+use App\Http\Controllers\SettingsController;
 
 Route::get('/', function () {
     if (Auth::check()) {
@@ -21,36 +18,27 @@ Route::get('/', function () {
 
 Auth::routes();
 
-Route::resource('absences', AbsenceController::class)->only(['create', 'store']);
-
 Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 Route::middleware(['auth'])->group(function () {
 
-    Route::resource('items', ItemController::class);
-    Route::post('/items/bulk-destroy', [ItemController::class, 'bulkDestroy'])->name('items.bulkDestroy');
-    Route::post('/items/download-csv', [ItemController::class, 'downloadCsv'])->name('items.downloadCsv');
-    Route::post('/items/download-popup-csv', [ItemController::class, 'downloadPopupCsv'])->name('items.downloadPopupCsv');
+    // Attendance Management Routes
+    Route::resource('attendances', AttendanceController::class);
+    Route::post('/attendances/bulk-destroy', [AttendanceController::class, 'bulkDestroy'])->name('attendances.bulkDestroy');
+    Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');
+    Route::post('/check-out', [AttendanceController::class, 'checkOut'])->name('check-out');
+    Route::get('/attendance-stats', [AttendanceController::class, 'getStats'])->name('attendance.stats');
 
-    Route::resource('mutations', MutationController::class);
-    Route::post('/mutations/bulk-destroy', [MutationController::class, 'bulkDestroy'])->name('mutations.bulkDestroy');
-    Route::post('/mutations/download-csv', [MutationController::class, 'downloadCsv'])->name('mutations.downloadCsv');
-    Route::post('/mutations/download-popup-csv', [MutationController::class, 'downloadPopupCsv'])->name('mutations.downloadPopupCsv');
-
-    Route::resource('sales', SaleController::class);
-    Route::post('/sales/bulk-destroy', [SaleController::class, 'bulkDestroy'])->name('sales.bulkDestroy');
-    Route::post('/sales/download-csv', [SaleController::class, 'downloadCsv'])->name('sales.downloadCsv');
-    Route::post('/sales/download-popup-csv', [SaleController::class, 'downloadPopupCsv'])->name('sales.downloadPopupCsv');
-
-    Route::resource('weights', WeightController::class);
-    Route::post('/weights/bulk-destroy', [WeightController::class, 'bulkDestroy'])->name('weights.bulkDestroy');
-
+    // Absence Management Routes
+    Route::resource('absences', AbsenceController::class);
+    Route::post('/absences/bulk-destroy', [AbsenceController::class, 'bulkDestroy'])->name('absences.bulkDestroy');
+    Route::post('/absences/{absence}/approve', [AbsenceController::class, 'approve'])->name('absences.approve');
+    Route::post('/absences/{absence}/reject', [AbsenceController::class, 'reject'])->name('absences.reject');
+    
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::get('/settings/appearance', [SettingsController::class, 'editAppearance'])->name('settings.appearance');
     Route::put('/settings/appearance', [SettingsController::class, 'updateAppearance'])->name('settings.appearance.update');
     
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
-    
-    Route::get('/absences', [AbsenceController::class, 'index'])->name('absences.index');
 });

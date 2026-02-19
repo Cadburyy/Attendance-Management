@@ -52,27 +52,7 @@
                     <small class="text-muted">We will auto-load the selected font for you.</small>
                 </div>
 
-                <div class="col-md-6">
-                    <label for="bg_color" class="form-label"><strong>Background Color</strong></label>
-                    <div class="input-group">
-                        <input type="color" name="bg_color" id="bg_color" class="form-control form-control-color"
-                               value="{{ old('bg_color', $settings['bg_color'] ?? '#f8f9fa') }}">
-                        <input type="text" name="bg_color_hex" id="bg_color_hex" class="form-control" placeholder="#f8f9fa"
-                               value="{{ old('bg_color', $settings['bg_color'] ?? '#f8f9fa') }}">
-                    </div>
-                    <small class="text-muted">Choose the main page background color.</small>
-                </div>
 
-                <div class="col-md-6">
-                    <label for="nav_bg_color" class="form-label"><strong>Navbar Background Color</strong></label>
-                    <div class="input-group">
-                        <input type="color" name="nav_bg_color" id="nav_bg_color" class="form-control form-control-color"
-                               value="{{ old('nav_bg_color', $settings['nav_bg_color'] ?? '#ffffff') }}">
-                        <input type="text" name="nav_bg_color_hex" id="nav_bg_color_hex" class="form-control" placeholder="#ffffff"
-                               value="{{ old('nav_bg_color', $settings['nav_bg_color'] ?? '#ffffff') }}">
-                    </div>
-                    <small class="text-muted">Choose the color for the main navigation bar.</small>
-                </div>
 
                 <div class="col-md-6">
                     <label for="logo" class="form-label"><strong>Logo (PNG)</strong></label>
@@ -108,28 +88,5 @@
     </div>
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const bgColorInput = document.getElementById('bg_color');
-        const bgColorHexInput = document.getElementById('bg_color_hex');
-        const navBgColorInput = document.getElementById('nav_bg_color');
-        const navBgColorHexInput = document.getElementById('nav_bg_color_hex');
 
-        bgColorInput.addEventListener('input', (event) => {
-            bgColorHexInput.value = event.target.value;
-        });
-
-        navBgColorInput.addEventListener('input', (event) => {
-            navBgColorHexInput.value = event.target.value;
-        });
-
-        bgColorHexInput.addEventListener('input', (event) => {
-            bgColorInput.value = event.target.value;
-        });
-
-        navBgColorHexInput.addEventListener('input', (event) => {
-            navBgColorInput.value = event.target.value;
-        });
-    });
-</script>
 @endsection

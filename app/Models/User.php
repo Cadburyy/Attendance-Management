@@ -21,4 +21,20 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /**
+     * Get the attendance records for this user
+     */
+    public function attendances()
+    {
+        return $this->hasMany(\App\Models\Attendance::class);
+    }
+
+    /**
+     * Get the absence records for this user
+     */
+    public function absences()
+    {
+        return $this->hasMany(\App\Models\Absence::class);
+    }
 }

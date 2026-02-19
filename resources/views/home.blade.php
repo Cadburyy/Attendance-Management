@@ -1,229 +1,355 @@
 @extends('layouts.app')
 
 @section('content')
-@php
-    $user = Auth::user();
-@endphp
+<div class="dashboard-content">
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="mb-2 fw-bold" style="color: #0d3b66;">Selamat Datang, {{ Auth::user()->name }}! 👋</h1>
+        <p class="text-muted">{{ now()->format('l, F d, Y') }}</p>
+    </div>
+
+    <!-- Anomaly Alerts -->
+    @if(count($anomalies) > 0)
+        <div class="row mb-4">
+            <div class="col-12">
+                @foreach($anomalies as $anomaly)
+                    <div class="alert alert-{{ $anomaly['type'] }} alert-dismissible fade show d-flex align-items-center gap-3 mb-2" role="alert">
+                        <i class="fas {{ $anomaly['icon'] }} fa-lg"></i>
+                        <div>
+                            <strong>{{ $anomaly['title'] }}</strong>
+                            <p class="mb-0">{{ $anomaly['message'] }}</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
+    <!-- Quick Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-top: 4px solid #0d3b66;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small">Kehadiran Hari Ini</p>
+                            <h3 class="mb-0 fw-bold" style="color: #0d3b66;">{{ $totalAttendanceToday }}</h3>
+                        </div>
+                        <div style="width: 50px; height: 50px; background-color: rgba(13, 59, 102, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-check-circle" style="color: #0d3b66; font-size: 24px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-top: 4px solid #e63946;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small">Absensi Hari Ini</p>
+                            <h3 class="mb-0 fw-bold" style="color: #e63946;">{{ $totalAbsenceToday }}</h3>
+                        </div>
+                        <div style="width: 50px; height: 50px; background-color: rgba(230, 57, 70, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-times-circle" style="color: #e63946; font-size: 24px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-top: 4px solid #f77f00;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small">Hadir Bulan Ini</p>
+                            <h3 class="mb-0 fw-bold" style="color: #f77f00;">{{ $monthlyStats['present'] }}</h3>
+                        </div>
+                        <div style="width: 50px; height: 50px; background-color: rgba(247, 127, 0, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-calendar-check" style="color: #f77f00; font-size: 24px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-top: 4px solid #06a77d;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small">Permintaan Tertunda</p>
+                            <h3 class="mb-0 fw-bold" style="color: #06a77d;">{{ $pendingAbsences }}</h3>
+                        </div>
+                        <div style="width: 50px; height: 50px; background-color: rgba(6, 168, 125, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-hourglass-half" style="color: #06a77d; font-size: 24px;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom border-light py-3">
+                    <h6 class="mb-0 fw-bold" style="color: #0d3b66;">Ringkasan Kehadiran 7 Hari</h6>
+                </div>
+                <div class="card-body">
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="attendanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom border-light py-3">
+                    <h6 class="mb-0 fw-bold" style="color: #0d3b66;">Distribusi Status Bulanan</h6>
+                </div>
+                <div class="card-body">
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="monthlyStatsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second Row of Charts -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom border-light py-3">
+                    <h6 class="mb-0 fw-bold" style="color: #0d3b66;">Ringkasan Absensi 7 Hari</h6>
+                </div>
+                <div class="card-body">
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="absenceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom border-light py-3">
+                    <h6 class="mb-0 fw-bold" style="color: #0d3b66;">Permintaan Absensi Terbaru</h6>
+                </div>
+                <div class="card-body">
+                    @forelse($recentAbsences as $absence)
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div>
+                                <p class="mb-0 fw-semibold">{{ $absence->employee_name }}</p>
+                                <small class="text-muted">{{ $absence->date->format('M d, Y') }} • {{ $absence->reason }}</small>
+                            </div>
+                            <span class="badge bg-{{ $absence->status == 'pending' ? 'warning' : ($absence->status == 'approved' ? 'success' : 'danger') }}">
+                                {{ ucfirst($absence->status) }}
+                            </span>
+                        </div>
+                    @empty
+                        <p class="text-muted text-center py-4 mb-0">Tidak ada permintaan absensi terbaru</p>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <style>
-    body, html {
-        overflow-x: hidden;
-        overflow-y: auto;
-    }
-
-    .card-link-hover:hover .card {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important; 
-        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-    }
-
-    .card-link-hover .card {
-        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-    }
-
     .card {
-        border-radius: 1rem;
-        border: 1px solid #e9ecef; 
-        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075)!important;
+        transition: all 0.3s ease;
     }
-    
-    .chart-container {
-        position: relative;
-        height: 300px;
-        width: 100%;
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(13, 59, 102, 0.15) !important;
+    }
+
+    .dashboard-content {
+        padding: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-content {
+            padding: 12px;
+        }
+
+        .card {
+            margin-bottom: 12px;
+        }
     }
 </style>
 
-<div class="container d-flex flex-column justify-content-center py-5">
-
-    <h2 class="text-center mb-4">
-        Welcome, {{ $user->name }} 
-        <span role="img" aria-label="wave">👋</span>
-    </h2>
-
-    <div class="row mb-5">
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white border-0 pt-3 pb-0">
-                    <h5 class="card-title text-center text-primary fw-bold">Stock Produksi</h5>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="prodChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 mb-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-white border-0 pt-3 pb-0">
-                    <h5 class="card-title text-center text-info fw-bold">Stock Mutasi</h5>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="mutChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-2 g-4 justify-content-center mb-5">
-        <div class="col">
-            <a href="{{ route('items.index') }}" class="text-decoration-none card-link-hover">
-                <div class="card h-100 text-center shadow-sm p-3">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <i class="fas fa-industry fa-3x mb-3 text-primary"></i>
-                        <h5 class="card-title"><strong>Produksi</strong></h5>
-                        <p class="card-text text-muted small">Input hasil produksi (Goods, Scrap, Cakalan).</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-        
-        <div class="col">
-            <a href="{{ route('mutations.index') }}" class="text-decoration-none card-link-hover">
-                <div class="card h-100 text-center shadow-sm p-3">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <i class="fas fa-exchange-alt fa-3x mb-3 text-info"></i>
-                        <h5 class="card-title"><strong>Mutasi Barang</strong></h5>
-                        <p class="card-text text-muted small">Pindahkan stok produksi ke proses lain.</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col">
-            <a href="{{ route('sales.index') }}" class="text-decoration-none card-link-hover">
-                <div class="card h-100 text-center shadow-sm p-3">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <i class="fas fa-cash-register fa-3x mb-3 text-success"></i>
-                        <h5 class="card-title"><strong>Penjualan</strong></h5>
-                        <p class="card-text text-muted small">Input penjualan ke customer.</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col">
-            <a href="{{ route('weights.index') }}" class="text-decoration-none card-link-hover">
-                <div class="card h-100 text-center shadow-sm p-3">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <i class="fas fa-balance-scale fa-3x mb-3 text-warning"></i>
-                        <h5 class="card-title"><strong>Master Berat</strong></h5>
-                        <p class="card-text text-muted small">Kelola standar berat item/part.</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-    </div>
-
-    @if (session('status'))
-        <div class="alert alert-success text-center mt-5" role="alert">
-            {{ session('status') }}
-        </div>
-    @endif
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const prodLabels = @json($prodLabels);
-        const prodBreakdown = @json($prodBreakdown);
-        
-        const mutLabels = @json($mutLabels);
-        const mutBreakdown = @json($mutBreakdown);
+        const labels = @json($labels);
+        const presentData = @json($presentData);
+        const absentData = @json($absentData);
+        const lateData = @json($lateData);
+        const absenceData = @json($absenceData);
 
-        const prodScrapData = prodLabels.map(label => prodBreakdown[label]?.scrap || 0);
-        const prodCakalanData = prodLabels.map(label => prodBreakdown[label]?.cakalan || 0);
+        // Chart colors
+        const colors = {
+            primary: '#0d3b66',
+            danger: '#e63946',
+            warning: '#f77f00',
+            success: '#06a77d'
+        };
 
-        const mutScrapData = mutLabels.map(label => mutBreakdown[label]?.scrap || 0);
-        const mutCakalanData = mutLabels.map(label => mutBreakdown[label]?.cakalan || 0);
-
-        if(prodLabels.length > 0) {
-            new Chart(document.getElementById('prodChart'), {
-                type: 'bar',
+        // 7-Day Attendance Chart
+        if(document.getElementById('attendanceChart')) {
+            new Chart(document.getElementById('attendanceChart'), {
+                type: 'line',
                 data: {
-                    labels: prodLabels,
+                    labels: labels,
                     datasets: [
                         {
-                            label: 'Scrap (KG)',
-                            data: prodScrapData,
-                            backgroundColor: 'rgba(255, 99, 132, 0.7)',
-                            borderWidth: 1
+                            label: 'Hadir',
+                            data: presentData,
+                            borderColor: colors.primary,
+                            backgroundColor: 'rgba(13, 59, 102, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointBackgroundColor: colors.primary,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
                         },
                         {
-                            label: 'Cakalan (KG)',
-                            data: prodCakalanData,
-                            backgroundColor: 'rgba(255, 206, 86, 0.7)',
-                            borderWidth: 1
+                            label: 'Absen',
+                            data: absentData,
+                            borderColor: colors.danger,
+                            backgroundColor: 'rgba(230, 57, 70, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointBackgroundColor: colors.danger,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                        },
+                        {
+                            label: 'Terlambat',
+                            data: lateData,
+                            borderColor: colors.warning,
+                            backgroundColor: 'rgba(247, 127, 0, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointBackgroundColor: colors.warning,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        x: { stacked: false },
-                        y: { beginAtZero: true }
-                    },
                     plugins: {
-                        legend: { position: 'top' },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.raw + ' Kg';
-                                }
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 6,
+                                padding: 20,
+                                font: { size: 12, weight: 600 }
                             }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 },
+                            grid: { drawBorder: false, color: 'rgba(0,0,0,0.05)' }
+                        },
+                        x: {
+                            grid: { display: false, drawBorder: false }
                         }
                     }
                 }
             });
-        } else {
-            document.getElementById('prodChart').parentNode.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted">No Data Available</div>';
         }
 
-        if(mutLabels.length > 0) {
-            new Chart(document.getElementById('mutChart'), {
-                type: 'bar',
+        // Monthly Stats Doughnut Chart
+        if(document.getElementById('monthlyStatsChart')) {
+            new Chart(document.getElementById('monthlyStatsChart'), {
+                type: 'doughnut',
                 data: {
-                    labels: mutLabels,
-                    datasets: [
-                        {
-                            label: 'Scrap (KG)',
-                            data: mutScrapData,
-                            backgroundColor: 'rgba(255, 99, 132, 0.7)',
-                            borderWidth: 1
-                        },
-                        {
-                            label: 'Cakalan (KG)',
-                            data: mutCakalanData,
-                            backgroundColor: 'rgba(255, 206, 86, 0.7)',
-                            borderWidth: 1
-                        }
-                    ]
+                    labels: ['Hadir', 'Absen', 'Terlambat', 'Izin', 'Sakit'],
+                    datasets: [{
+                        data: [@json($monthlyStats['present']), @json($monthlyStats['absent']), @json($monthlyStats['late']), @json($monthlyStats['leave']), @json($monthlyStats['sick'])],
+                        backgroundColor: [
+                            colors.primary,
+                            colors.danger,
+                            colors.warning,
+                            '#3b5998',
+                            '#6c757d'
+                        ],
+                        borderColor: '#fff',
+                        borderWidth: 3
+                    }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        x: { stacked: false },
-                        y: { beginAtZero: true }
-                    },
                     plugins: {
-                        legend: { position: 'top' },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.raw + ' Kg';
-                                }
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 6,
+                                padding: 15,
+                                font: { size: 11, weight: 600 }
                             }
                         }
                     }
                 }
             });
-        } else {
-            document.getElementById('mutChart').parentNode.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted">No Data Available</div>';
+        }
+
+        // 7-Day Absence Chart
+        if(document.getElementById('absenceChart')) {
+            new Chart(document.getElementById('absenceChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Permintaan Absensi',
+                        data: absenceData,
+                        backgroundColor: colors.danger,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 },
+                            grid: { drawBorder: false, color: 'rgba(0,0,0,0.05)' }
+                        },
+                        x: {
+                            grid: { display: false, drawBorder: false }
+                        }
+                    }
+                }
+            });
         }
     });
 </script>

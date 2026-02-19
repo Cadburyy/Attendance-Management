@@ -30,8 +30,6 @@ class SettingsController extends Controller
             'font' => 'Nunito',
             'logo_path' => null,
             'favicon_path' => null,
-            'bg_color' => '#f8f9fa',
-            'nav_bg_color' => '#ffffff',
         ];
 
         $settings = array_merge($defaults, $settings);
@@ -46,14 +44,10 @@ class SettingsController extends Controller
             'font' => ['required', Rule::in(['Nunito', 'Inter', 'Roboto', 'Poppins', 'Open Sans'])],
             'logo' => 'nullable|image|mimes:png|max:2048',
             'favicon' => 'nullable|image|mimes:ico,png,jpg,jpeg,gif|max:2048',
-            'bg_color' => ['required', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
-            'nav_bg_color' => ['required', 'string', 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/'],
         ]);
         
         $this->putSetting('brand_name', $request->brand_name);
         $this->putSetting('font', $request->font);
-        $this->putSetting('bg_color', $request->bg_color);
-        $this->putSetting('nav_bg_color', $request->nav_bg_color);
 
         if ($request->hasFile('logo')) {
             $oldLogoPath = Setting::where('key', 'logo_path')->value('value');
