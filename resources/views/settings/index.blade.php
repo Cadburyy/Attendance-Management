@@ -2,93 +2,91 @@
 
 @section('content')
 
-<style>
-    body, html {
-        overflow-x: hidden;
-        overflow-y: auto;
-    }
-
-    .card-link-hover:hover .card {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
-        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-    }
-
-    .card-link-hover .card {
-        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-    }
-
-    .card {
-        border-radius: 1rem;
-        border: 1px solid var(--border);
-    }
-
-    .card-header {
-        border-bottom: 1px solid var(--border);
-        border-top-left-radius: 1rem;
-        border-top-right-radius: 1rem;
-    }
-
-    .text-primary-dark {
-        color: #0056b3;
-    }
-
-    .section-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        color: var(--text);
-    }
-</style>
-
-<div class="container py-3">
-    <h2 class="text-center mb-2"><strong>Settings Dashboard ⚙️</strong></h2>
-    
-    @hasanyrole('AdminIT|Admin')
-    <div class="text-center section-title">CMS Settings</div>
-    <div class="row row-cols-1 row-cols-md-3 g-3 justify-content-center mt-1">
-        <div class="col-md-4">
-            <a href="{{ route('settings.appearance') }}" class="text-decoration-none card-link-hover">
-                <div class="card h-100 text-center shadow-sm p-3">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <i class="fas fa-paint-brush fa-3x mb-2 text-danger"></i>
-                        <h5 class="card-title"><strong>Appearance</strong></h5>
-                        <p class="card-text text-muted"><strong>Modify company appearance.</strong></p>
-                    </div>
-                </div>
-            </a>
-        </div>
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Edit Appearance</h2>
+        <a class="btn btn-secondary" href="{{ route('home') }}">
+            <i class="fa fa-arrow-left me-2"></i> Back
+        </a>
     </div>
 
-    <div class="text-center section-title">System Settings</div>
-    <div class="row row-cols-1 row-cols-md-3 g-3 justify-content-center mt-1">
-        <div class="col-md-4">
-            <a href="{{ route('users.index') }}" class="text-decoration-none card-link-hover">
-                <div class="card h-100 text-center shadow-sm p-3">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <i class="fas fa-users fa-3x mb-2 text-primary-dark"></i>
-                        <h5 class="card-title"><strong>Manage Users</strong></h5>
-                        <p class="card-text text-muted"><strong>View and manage all user accounts.</strong></p>
-                    </div>
-                </div>
-            </a>
+    @if ($errors->any())
+        <div class="alert alert-danger rounded-3 shadow-sm mt-2">
+            <strong>Whoops!</strong> There were some problems with your input.<br><br>
+            <ul class="mb-0">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
         </div>
+    @endif
 
-        @role('AdminIT')
-        <div class="col-md-4">
-            <a href="{{ route('roles.index') }}" class="text-decoration-none card-link-hover">
-                <div class="card h-100 text-center shadow-sm p-3">
-                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                        <i class="fas fa-user-tag fa-3x mb-2 text-success"></i>
-                        <h5 class="card-title"><strong>Manage Roles</strong></h5>
-                        <p class="card-text text-muted"><strong>Assign and modify user roles and permissions.</strong></p>
-                    </div>
-                </div>
-            </a>
+    @if(session('success'))
+        <div class="alert alert-success rounded-3 shadow-sm mt-2">
+            {{ session('success') }}
         </div>
-        @endrole
+    @endif
+
+    <div class="card border-success shadow-sm p-4">
+        <form method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data">
+            @csrf
+            @method('PUT')
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="brand_name" class="form-label"><strong>Brand Name</strong></label>
+                    <input type="text" name="brand_name" id="brand_name" class="form-control"
+                           value="{{ old('brand_name', $settings['brand_name'] ?? '') }}">
+                    <small class="text-muted">This is the text label shown next to the logo in the navbar.</small>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="font" class="form-label"><strong>Font</strong></label>
+                    <select name="font" id="font" class="form-select">
+                        @foreach (['Nunito','Inter','Roboto','Poppins','Open Sans'] as $font)
+                            <option value="{{ $font }}" {{ old('font', $settings['font']) === $font ? 'selected' : '' }}>
+                                {{ $font }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <small class="text-muted">We will auto-load the selected font for you.</small>
+                </div>
+
+
+
+                <div class="col-md-6">
+                    <label for="logo" class="form-label"><strong>Logo (PNG)</strong></label>
+                    <input type="file" name="logo" id="logo" class="form-control" accept="image/png">
+                    @if(!empty($settings['logo_path']))
+                        <div class="mt-2">
+                            <img src="{{ asset('storage/'.$settings['logo_path']) }}" alt="Current Logo" style="height:50px">
+                            <div><small class="text-muted">Current logo</small></div>
+                        </div>
+                    @endif
+                    <small class="text-muted d-block">Maximum size 2MB. PNG only.</small>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="favicon" class="form-label"><strong>Icon (ico, png, jpg, gif)</strong></label>
+                    <input type="file" name="favicon" id="favicon" class="form-control" accept="image/*">
+                    @if(!empty($settings['favicon_path']))
+                        <div class="mt-2">
+                            <img src="{{ asset('storage/'.$settings['favicon_path']) }}" alt="Current Favicon" style="height:30px">
+                            <div><small class="text-muted">Current favicon</small></div>
+                        </div>
+                    @endif
+                    <small class="text-muted d-block">Maximum size 2MB. Accepts .ico, .png, .jpg, .gif.</small>
+                </div>
+
+                <div class="col-12 text-center mt-3">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fa-solid fa-floppy-disk me-2"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </form>
     </div>
-    @endhasanyrole
 </div>
+
+
 @endsection

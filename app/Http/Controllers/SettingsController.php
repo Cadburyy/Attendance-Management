@@ -12,16 +12,10 @@ class SettingsController extends Controller
     function __construct()
     {
         $this->middleware('permission:setting', ['only' => ['index']]);
-
-        $this->middleware('permission:appearance', ['only' => ['editAppearance', 'updateAppearance']]);
+        $this->middleware('permission:appearance', ['only' => ['updateAppearance']]);
     }
 
     public function index()
-    {
-        return view('settings.index');
-    }
-
-    public function editAppearance()
     {
         $settings = Setting::pluck('value', 'key')->toArray();
 
@@ -34,7 +28,7 @@ class SettingsController extends Controller
 
         $settings = array_merge($defaults, $settings);
 
-        return view('settings.appearance', compact('settings'));
+        return view('settings.index', compact('settings'));
     }
 
     public function updateAppearance(Request $request)
@@ -71,7 +65,7 @@ class SettingsController extends Controller
 
         cache()->forget('app_settings');
 
-        return redirect()->route('settings.appearance')->with('success', 'Appearance updated!');
+        return redirect()->route('settings.index')->with('success', 'Appearance updated!');
     }
 
     protected function putSetting(string $key, $value): void

@@ -35,9 +35,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/absences/{absence}/approve', [AbsenceController::class, 'approve'])->name('absences.approve');
     Route::post('/absences/{absence}/reject', [AbsenceController::class, 'reject'])->name('absences.reject');
     
+    // Single canonical settings route (GET shows form, PUT updates)
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-    Route::get('/settings/appearance', [SettingsController::class, 'editAppearance'])->name('settings.appearance');
-    Route::put('/settings/appearance', [SettingsController::class, 'updateAppearance'])->name('settings.appearance.update');
+    Route::put('/settings', [SettingsController::class, 'updateAppearance'])->name('settings.update');
     
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
