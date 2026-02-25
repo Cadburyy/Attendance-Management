@@ -11,6 +11,7 @@ use Illuminate\Support\Arr;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -19,6 +20,21 @@ class UserController extends Controller
         $this->middleware('permission:user');
     }
 
+    /**
+     * Protects users who have 'setting' permission from being modified by those who don't.
+     */
+    private function protectSettingUser(User $targetUser): void
+    {
+        if (!Auth::user()->can('setting') && $targetUser->can('setting')) {
+            throw ValidationException::withMessages([
+                'error' => ["Can't edit this user."]
+            ]);
+        }
+    }
+
+    /**
+     * Legacy protection for AdminIT role.
+     */
     private function checkAdminITProtection(User $targetUser): ?RedirectResponse
     {
         if (Auth::user()->hasRole('User')) {
@@ -32,8 +48,20 @@ class UserController extends Controller
 
     public function index(Request $request): View
     {
-        $data = User::latest()->paginate(5);
-        return view('users.index', compact('data'))
+        $roles = Role::pluck('name', 'name')->all();
+
+        $data = User::query()
+            ->when($request->name, function($query, $name) {
+                return $query->where('name', 'like', "%{$name}%");
+            })
+            ->when($request->role, function($query, $role) {
+                return $query->role($role);
+            })
+            ->latest()
+            ->paginate(5)
+            ->appends($request->query());
+
+        return view('users.index', compact('data', 'roles'))
             ->with('i', ($request->input('page', 1) - 1) * 5);
     }
 
@@ -51,6 +79,18 @@ class UserController extends Controller
             'password' => 'required|same:confirm-password',
             'roles' => 'required'
         ]);
+
+        // Check if user is trying to assign a role that has 'setting' permission
+        if (!Auth::user()->can('setting')) {
+            $assignedRoles = Role::whereIn('name', Arr::wrap($request->input('roles')))->get();
+            foreach ($assignedRoles as $role) {
+                if ($role->hasPermissionTo('setting')) {
+                    throw ValidationException::withMessages([
+                        'roles' => ["You don't have permission to assign roles with 'setting' access."]
+                    ]);
+                }
+            }
+        }
 
         $input = $request->all();
         $input['password'] = Hash::make($input['password']);
@@ -72,6 +112,8 @@ class UserController extends Controller
     {
         $user = User::find($id);
 
+        $this->protectSettingUser($user);
+        
         if ($response = $this->checkAdminITProtection($user)) {
             return $response;
         }
@@ -85,6 +127,8 @@ class UserController extends Controller
     {
         $user = User::find($id);
 
+        $this->protectSettingUser($user);
+
         if ($response = $this->checkAdminITProtection($user)) {
             return $response;
         }
@@ -95,6 +139,18 @@ class UserController extends Controller
             'password' => 'nullable|same:confirm-password',
             'roles' => 'required'
         ]);
+
+        // Prevent unauthorized assignment of 'setting' roles
+        if (!Auth::user()->can('setting')) {
+            $assignedRoles = Role::whereIn('name', Arr::wrap($request->input('roles')))->get();
+            foreach ($assignedRoles as $role) {
+                if ($role->hasPermissionTo('setting')) {
+                    throw ValidationException::withMessages([
+                        'roles' => ["You don't have permission to assign roles with 'setting' access."]
+                    ]);
+                }
+            }
+        }
 
         $input = $request->all();
         if (!empty($input['password'])) {
@@ -115,6 +171,8 @@ class UserController extends Controller
     public function destroy($id): RedirectResponse
     {
         $user = User::find($id);
+
+        $this->protectSettingUser($user);
 
         if ($response = $this->checkAdminITProtection($user)) {
             return $response;

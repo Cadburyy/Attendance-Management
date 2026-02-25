@@ -9,10 +9,9 @@ use Illuminate\Validation\Rule;
 
 class SettingsController extends Controller
 {
-    function __construct()
+    public function __construct()
     {
-        $this->middleware('permission:setting', ['only' => ['index']]);
-        $this->middleware('permission:appearance', ['only' => ['updateAppearance']]);
+        $this->middleware('permission:setting', ['only' => ['index', 'updateAppearance']]);
     }
 
     public function index()
@@ -65,7 +64,7 @@ class SettingsController extends Controller
 
         cache()->forget('app_settings');
 
-        return redirect()->route('settings.index')->with('success', 'Appearance updated!');
+        return redirect()->route('settings.index')->with('success', 'Settings updated successfully!');
     }
 
     protected function putSetting(string $key, $value): void

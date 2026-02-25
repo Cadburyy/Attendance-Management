@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\User;
+use Spatie\Permission\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -17,24 +18,33 @@ class AttendanceController extends Controller
 
     public function index(Request $request)
     {
+        $roles = Role::pluck('name', 'name')->all();
         $query = Attendance::with('user');
+
+        if ($request->filled('name')) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->name . '%');
+            });
+        }
+
+        if ($request->filled('role')) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->role($request->role);
+            });
+        }
 
         if ($request->filled('date')) {
             $query->whereDate('date', $request->date);
-        }
-
-        if ($request->filled('user_id')) {
-            $query->where('user_id', $request->user_id);
         }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        $attendances = $query->orderBy('date', 'desc')->paginate(15);
+        $attendances = $query->orderBy('date', 'desc')->paginate(15)->appends($request->query());
         $users = User::all();
 
-        return view('attendances.index', compact('attendances', 'users'));
+        return view('attendances.index', compact('attendances', 'users', 'roles'));
     }
 
     public function create()
@@ -135,16 +145,11 @@ class AttendanceController extends Controller
         $endDate = $request->get('end_date', now()->toDateString());
 
         $stats = [
-            'total_present' => Attendance::forDateRange($startDate, $endDate)
-                ->byStatus('present')->count(),
-            'total_absent' => Attendance::forDateRange($startDate, $endDate)
-                ->byStatus('absent')->count(),
-            'total_late' => Attendance::forDateRange($startDate, $endDate)
-                ->byStatus('late')->count(),
-            'total_leave' => Attendance::forDateRange($startDate, $endDate)
-                ->byStatus('leave')->count(),
-            'total_sick' => Attendance::forDateRange($startDate, $endDate)
-                ->byStatus('sick')->count(),
+            'total_present' => Attendance::whereBetween('date', [$startDate, $endDate])->where('status', 'present')->count(),
+            'total_absent' => Attendance::whereBetween('date', [$startDate, $endDate])->where('status', 'absent')->count(),
+            'total_late' => Attendance::whereBetween('date', [$startDate, $endDate])->where('status', 'late')->count(),
+            'total_leave' => Attendance::whereBetween('date', [$startDate, $endDate])->where('status', 'leave')->count(),
+            'total_sick' => Attendance::whereBetween('date', [$startDate, $endDate])->where('status', 'sick')->count(),
         ];
 
         return response()->json($stats);

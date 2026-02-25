@@ -1,127 +1,14 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="page-wrapper">
-    <div class="page-header mb-5">
-        <div class="header-content">
-            <h1 class="page-title">Roles & Permissions</h1>
-            <p class="page-subtitle">Manage user roles and access control</p>
-        </div>
-        @can('role')
-            <a href="{{ route('roles.create') }}" class="btn btn-create">
-                <i class="fas fa-plus"></i> Add Role
-            </a>
-        @endcan
-    </div>
-
-    @if(session('success'))
-        <div class="alert-success-custom">
-            <i class="fas fa-check-circle"></i>
-            <span>{{ session('success') }}</span>
-        </div>
-    @endif
-
-    <div class="roles-grid">
-        @forelse($roles as $role)
-            <div class="role-card">
-                <div class="role-header">
-                    <div class="role-icon">
-                        <i class="fas fa-shield-alt"></i>
-                    </div>
-                    <h3>{{ ucfirst($role->name) }}</h3>
-                </div>
-                <div class="role-body">
-                    @php
-                        $permissions = $role->permissions->pluck('name')->toArray();
-                        $permissionCount = count($permissions);
-                    @endphp
-                    <div class="permission-stat">
-                        <div class="stat-number">{{ $permissionCount }}</div>
-                        <div class="stat-label">{{ $permissionCount === 1 ? 'Permission' : 'Permissions' }}</div>
-                    </div>
-                    @if($permissionCount > 0)
-                        <div class="permission-preview">
-                            <p class="preview-label">Key Permissions:</p>
-                            <div class="permission-tags">
-                                @foreach(array_slice($permissions, 0, 3) as $permission)
-                                    <span class="permission-tag">{{ ucfirst($permission) }}</span>
-                                @endforeach
-                                @if($permissionCount > 3)
-                                    <span class="permission-tag permission-tag-more">+{{ $permissionCount - 3 }}</span>
-                                @endif
-                            </div>
-                        </div>
-                    @else
-                        <div class="permission-empty">
-                            <p>No permissions assigned</p>
-                        </div>
-                    @endif
-                </div>
-                <div class="role-footer">
-                    @can('role')
-                        <a href="{{ route('roles.edit', $role->id) }}" class="btn-action btn-edit" title="Edit">
-                            <i class="fas fa-edit"></i> Edit
-                        </a>
-                        <button type="button" class="btn-action btn-delete delete-btn"
-                            data-bs-toggle="modal" data-bs-target="#deleteModal"
-                            data-action="{{ route('roles.destroy', $role->id) }}" title="Delete">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    @endcan
-                </div>
-            </div>
-        @empty
-            <div class="empty-state-full">
-                <i class="fas fa-inbox"></i>
-                <h3>No roles found</h3>
-                <p>Create your first role to get started</p>
-            </div>
-        @endforelse
-    </div>
-
-    @if($roles->hasPages())
-        <div class="pagination-wrapper">
-            {{ $roles->links() }}
-        </div>
-    @endif
-</div>
-
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content modal-content-custom">
-            <div class="modal-header modal-header-custom">
-                <h5 class="modal-title">Delete Role</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body modal-body-custom">
-                <p>Are you sure you want to delete this role? This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer modal-footer-custom">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="delete-form" method="POST" style="display:inline;">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 <style>
     .page-wrapper {
         animation: fadeInUp 0.5s ease-out;
     }
 
     @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .page-header {
@@ -154,29 +41,41 @@
         cursor: pointer;
         transition: all 0.3s ease;
         box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3);
+        text-decoration: none;
     }
 
     .btn-create:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(13, 59, 102, 0.4);
+        color: white;
     }
 
-    .alert-success-custom {
-        background: linear-gradient(135deg, rgba(6, 168, 125, 0.1) 0%, rgba(6, 168, 125, 0.05) 100%);
-        border-left: 4px solid #06a77d;
+    .alert-success-custom, .alert-error-custom {
         border-radius: 10px;
         padding: 16px 20px;
         margin-bottom: 24px;
         display: flex;
         align-items: center;
         gap: 12px;
-        color: #06a77d;
         font-weight: 500;
         animation: slideIn 0.4s ease-out;
     }
 
-    .alert-success-custom i {
-        font-size: 20px;
+    .alert-success-custom {
+        background: linear-gradient(135deg, rgba(6, 168, 125, 0.1) 0%, rgba(6, 168, 125, 0.05) 100%);
+        border-left: 4px solid #06a77d;
+        color: #06a77d;
+    }
+
+    .alert-error-custom {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+        border-left: 4px solid #ef4444;
+        color: #ef4444;
+    }
+
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
     }
 
     .roles-grid {
@@ -219,6 +118,7 @@
         font-size: 24px;
         font-weight: 700;
         margin: 0;
+        color: white;
     }
 
     .role-body {
@@ -318,35 +218,10 @@
         min-height: 36px;
     }
 
-    .btn-view {
-        background: rgba(59, 130, 246, 0.1);
-        color: #3b82f6;
-    }
-
-    .btn-view:hover {
-        background: #3b82f6;
-        color: white;
-    }
-
-    .btn-edit {
-        background: rgba(245, 158, 11, 0.1);
-        color: #f59e0b;
-    }
-
-    .btn-edit:hover {
-        background: #f59e0b;
-        color: white;
-    }
-
-    .btn-delete {
-        background: rgba(107, 114, 128, 0.1);
-        color: #6b7280;
-    }
-
-    .btn-delete:hover {
-        background: #6b7280;
-        color: white;
-    }
+    .btn-edit { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+    .btn-edit:hover { background: #f59e0b; color: white; }
+    .btn-delete { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+    .btn-delete:hover { background: #ef4444; color: white; }
 
     .empty-state-full {
         text-align: center;
@@ -369,10 +244,7 @@
         margin: 0 0 8px 0;
     }
 
-    .empty-state-full p {
-        margin: 0;
-        font-size: 15px;
-    }
+    .empty-state-full p { margin: 0; font-size: 15px; }
 
     .pagination-wrapper {
         display: flex;
@@ -381,27 +253,20 @@
     }
 
     .modal-content-custom {
-        border: 1px solid rgba(0, 0, 0, 0.08);
+        border: none;
+        border-radius: 16px;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
     }
 
     .modal-header-custom {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 16px 16px 0 0;
     }
 
     .modal-header-custom .modal-title {
         color: #0d3b66;
         font-weight: 700;
-    }
-
-    .modal-body-custom {
-        color: #4b5563;
-        font-size: 15px;
-    }
-
-    .modal-footer-custom {
-        border-top: 1px solid rgba(0, 0, 0, 0.05);
     }
 
     @media (max-width: 768px) {
@@ -417,15 +282,132 @@
     }
 </style>
 
+<div class="page-wrapper">
+    <div class="page-header mb-5">
+        <div class="header-content">
+            <h1 class="page-title">Roles & Permissions</h1>
+            <p class="page-subtitle">Manage user roles and access control</p>
+        </div>
+        @can('role')
+            <a href="{{ route('roles.create') }}" class="btn btn-create">
+                <i class="fas fa-plus"></i> Add Role
+            </a>
+        @endcan
+    </div>
+
+    @if(session('success'))
+        <div class="alert-success-custom">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ session('success') }}</span>
+        </div>
+    @endif
+
+    {{-- Catch ValidationException 'error' and generic session 'error' --}}
+    @if($errors->has('error') || session('error'))
+        <div class="alert-error-custom">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ $errors->first('error') ?: session('error') }}</span>
+        </div>
+    @endif
+
+    <div class="roles-grid">
+        @forelse($roles as $role)
+            <div class="role-card">
+                <div class="role-header">
+                    <div class="role-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3>{{ ucfirst($role->name) }}</h3>
+                </div>
+                <div class="role-body">
+                    @php
+                        $permissions = $role->permissions->pluck('name')->toArray();
+                        $permissionCount = count($permissions);
+                    @endphp
+                    <div class="permission-stat">
+                        <div class="stat-number">{{ $permissionCount }}</div>
+                        <div class="stat-label">{{ $permissionCount === 1 ? 'Permission' : 'Permissions' }}</div>
+                    </div>
+                    @if($permissionCount > 0)
+                        <div class="permission-preview">
+                            <p class="preview-label">Key Permissions:</p>
+                            <div class="permission-tags">
+                                @foreach(array_slice($permissions, 0, 3) as $permission)
+                                    <span class="permission-tag">{{ ucfirst($permission) }}</span>
+                                @endforeach
+                                @if($permissionCount > 3)
+                                    <span class="permission-tag permission-tag-more">+{{ $permissionCount - 3 }}</span>
+                                @endif
+                            </div>
+                        </div>
+                    @else
+                        <div class="permission-empty">
+                            <p>No permissions assigned</p>
+                        </div>
+                    @endif
+                </div>
+                <div class="role-footer">
+                    @can('role')
+                        <a href="{{ route('roles.edit', $role->id) }}" class="btn-action btn-edit" title="Edit">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <button type="button" class="btn-action btn-delete delete-btn"
+                            data-bs-toggle="modal" data-bs-target="#deleteModal"
+                            data-action="{{ route('roles.destroy', $role->id) }}" title="Delete">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    @endcan
+                </div>
+            </div>
+        @empty
+            <div class="empty-state-full">
+                <i class="fas fa-inbox"></i>
+                <h3>No roles found</h3>
+                <p>Create your first role to get started</p>
+            </div>
+        @endforelse
+    </div>
+
+    @if($roles->hasPages())
+        <div class="pagination-wrapper">
+            {{ $roles->links() }}
+        </div>
+    @endif
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-content-custom">
+            <div class="modal-header modal-header-custom">
+                <h5 class="modal-title">Delete Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p>Are you sure you want to delete this role? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-form" method="POST" style="display:inline;">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var deleteModal = document.getElementById('deleteModal');
-        deleteModal.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            var action = button.getAttribute('data-action');
-            var form = deleteModal.querySelector('#delete-form');
-            form.action = action;
-        });
+        if(deleteModal) {
+            deleteModal.addEventListener('show.bs.modal', function (event) {
+                var button = event.relatedTarget;
+                var action = button.getAttribute('data-action');
+                var form = deleteModal.querySelector('#delete-form');
+                form.action = action;
+            });
+        }
     });
 </script>
 @endsection

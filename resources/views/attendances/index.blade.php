@@ -1,139 +1,14 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="page-wrapper">
-    <div class="page-header mb-5">
-        <div class="header-content">
-            <h1 class="page-title">Attendance Records</h1>
-            <p class="page-subtitle">Track and manage attendance data</p>
-        </div>
-        <a href="{{ route('attendances.create') }}" class="btn btn-create">
-            <i class="fas fa-plus"></i> Add Record
-        </a>
-    </div>
-
-    @if(session('success'))
-        <div class="alert-success-custom">
-            <i class="fas fa-check-circle"></i>
-            <span>{{ session('success') }}</span>
-        </div>
-    @endif
-
-    <div class="filter-card">
-        <form method="GET" class="filter-form">
-            <div class="filter-group">
-                <input type="date" name="date" class="filter-input" 
-                    value="{{ request('date') }}" placeholder="Filter by date">
-            </div>
-            <div class="filter-group">
-                <select name="user_id" class="filter-input">
-                    <option value="">All Users</option>
-                    @foreach($users as $user)
-                        <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
-                            {{ $user->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="filter-group">
-                <select name="status" class="filter-input">
-                    <option value="">All Status</option>
-                    <option value="present" {{ request('status') == 'present' ? 'selected' : '' }}>Present</option>
-                    <option value="absent" {{ request('status') == 'absent' ? 'selected' : '' }}>Absent</option>
-                    <option value="late" {{ request('status') == 'late' ? 'selected' : '' }}>Late</option>
-                    <option value="leave" {{ request('status') == 'leave' ? 'selected' : '' }}>Leave</option>
-                    <option value="sick" {{ request('status') == 'sick' ? 'selected' : '' }}>Sick</option>
-                </select>
-            </div>
-            <button type="submit" class="btn-filter">
-                <i class="fas fa-search"></i> Filter
-            </button>
-        </form>
-    </div>
-
-    <div class="records-grid">
-        @forelse($attendances as $attendance)
-            <div class="record-card">
-                <div class="record-header">
-                    <div class="record-title">
-                        <h3>{{ $attendance->user->name ?? 'N/A' }}</h3>
-                        <p>{{ $attendance->date->format('M d, Y') }}</p>
-                    </div>
-                    <span class="status-badge status-{{ $attendance->status }}">
-                        {{ ucfirst($attendance->status) }}
-                    </span>
-                </div>
-                <div class="record-body">
-                    <div class="time-grid">
-                        <div class="time-item">
-                            <div class="time-label">
-                                <i class="fas fa-sign-in-alt"></i>
-                                Check-In
-                            </div>
-                            <div class="time-value">{{ $attendance->check_in ?? '-' }}</div>
-                        </div>
-                        <div class="time-item">
-                            <div class="time-label">
-                                <i class="fas fa-sign-out-alt"></i>
-                                Check-Out
-                            </div>
-                            <div class="time-value">{{ $attendance->check_out ?? '-' }}</div>
-                        </div>
-                    </div>
-                    @if($attendance->notes)
-                        <div class="notes-section">
-                            <label>Notes:</label>
-                            <p>{{ $attendance->notes }}</p>
-                        </div>
-                    @endif
-                </div>
-                <div class="record-footer">
-                    <a href="{{ route('attendances.show', $attendance) }}" class="btn-action btn-view" title="View">
-                        <i class="fas fa-eye"></i> View
-                    </a>
-                    <a href="{{ route('attendances.edit', $attendance) }}" class="btn-action btn-edit" title="Edit">
-                        <i class="fas fa-edit"></i> Edit
-                    </a>
-                    <form method="POST" action="{{ route('attendances.destroy', $attendance) }}" 
-                        style="display:inline;" onsubmit="return confirm('Delete this record?')">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn-action btn-delete" title="Delete">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </form>
-                </div>
-            </div>
-        @empty
-            <div class="empty-state-full">
-                <i class="fas fa-inbox"></i>
-                <h3>No attendance records found</h3>
-                <p>Create your first attendance record today</p>
-            </div>
-        @endforelse
-    </div>
-
-    @if($attendances->hasPages())
-        <div class="pagination-wrapper">
-            {{ $attendances->links() }}
-        </div>
-    @endif
-</div>
-
 <style>
     .page-wrapper {
         animation: fadeInUp 0.5s ease-out;
     }
 
     @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .page-header {
@@ -166,29 +41,13 @@
         cursor: pointer;
         transition: all 0.3s ease;
         box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3);
+        text-decoration: none;
     }
 
     .btn-create:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(13, 59, 102, 0.4);
-    }
-
-    .alert-success-custom {
-        background: linear-gradient(135deg, rgba(6, 168, 125, 0.1) 0%, rgba(6, 168, 125, 0.05) 100%);
-        border-left: 4px solid #06a77d;
-        border-radius: 10px;
-        padding: 16px 20px;
-        margin-bottom: 24px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        color: #06a77d;
-        font-weight: 500;
-        animation: slideIn 0.4s ease-out;
-    }
-
-    .alert-success-custom i {
-        font-size: 20px;
+        color: white;
     }
 
     .filter-card {
@@ -241,7 +100,7 @@
 
     .records-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
         gap: 24px;
         margin-bottom: 32px;
     }
@@ -263,238 +122,218 @@
     }
 
     .record-header {
-        padding: 20px;
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    }
-
-    .record-title h3 {
-        font-size: 18px;
-        font-weight: 700;
-        color: #0d3b66;
-        margin: 0 0 6px 0;
-    }
-
-    .record-title p {
-        font-size: 13px;
-        color: #6b7280;
-        margin: 0;
-    }
-
-    .status-badge {
-        padding: 6px 14px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        white-space: nowrap;
-    }
-
-    .status-present {
-        background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+        padding: 24px 20px;
+        background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%);
         color: white;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-
-    .status-absent {
-        background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-    }
-
-    .status-late {
-        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-    }
-
-    .status-leave {
-        background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-    }
-
-    .status-sick {
-        background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-    }
-
-    .record-body {
-        padding: 20px;
-        flex: 1;
-    }
-
-    .time-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-
-    .time-item {
-        background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
-        border-radius: 12px;
-        padding: 16px;
         text-align: center;
-        border: 1px solid #e5e7eb;
     }
 
-    .time-label {
-        font-size: 12px;
-        color: #6b7280;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
+    .record-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.9; }
+
+    .record-header h3 { font-size: 24px; font-weight: 700; margin: 0; color: white; }
+
+    .record-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
+
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+
+    .stat-box {
+        text-align: center; padding: 12px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-radius: 12px; border: 1px solid #b3e5fc; display: flex; flex-direction: column; justify-content: center; align-items: center;
     }
 
-    .time-label i {
-        color: #0d3b66;
-    }
+    .stat-value { font-size: 15px; font-weight: 700; color: #0d3b66; margin-bottom: 4px; }
+    .stat-label { font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
 
-    .time-value {
-        font-size: 18px;
-        font-weight: 700;
-        color: #0d3b66;
-    }
+    .status-badge { padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; display: inline-block; }
+    .status-present { background: linear-gradient(135deg, #34d399 0%, #10b981 100%); color: white; }
+    .status-absent { background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); color: white; }
+    .status-late { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; }
+    .status-leave { background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); color: white; }
+    .status-sick { background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%); color: white; }
 
-    .notes-section {
-        background: linear-gradient(135deg, #fef3c7 0%, #fef1e8 100%);
-        border-left: 4px solid #f59e0b;
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-top: 12px;
-    }
+    .record-details { flex: 1; background: #f9fafb; border-radius: 10px; padding: 16px; border: 1px solid #e5e7eb; }
+    .detail-label { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.3px; margin: 0 0 4px 0; }
+    .detail-text { font-size: 14px; color: #1f2937; font-weight: 500; }
 
-    .notes-section label {
-        font-size: 12px;
-        font-weight: 700;
-        color: #92400e;
-        display: block;
-        margin-bottom: 6px;
-    }
-
-    .notes-section p {
-        font-size: 14px;
-        color: #b45309;
-        margin: 0;
-        word-break: break-word;
-    }
-
-    .record-footer {
-        padding: 16px 20px;
-        border-top: 1px solid rgba(0, 0, 0, 0.05);
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
+    .record-footer { padding: 16px 20px; border-top: 1px solid rgba(0, 0, 0, 0.05); display: flex; gap: 8px; flex-wrap: wrap; }
 
     .btn-action {
-        padding: 8px 12px;
-        border: none;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        flex: 1;
-        justify-content: center;
-        text-decoration: none;
-        min-height: 36px;
+        padding: 8px 12px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+        display: inline-flex; align-items: center; gap: 6px; flex: 1; justify-content: center; text-decoration: none; min-height: 36px;
     }
 
-    .btn-view {
-        background: rgba(59, 130, 246, 0.1);
-        color: #3b82f6;
+    .btn-view { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+    .btn-view:hover { background: #3b82f6; color: white; }
+    .btn-edit { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+    .btn-edit:hover { background: #f59e0b; color: white; }
+    .btn-delete { background: rgba(107, 114, 128, 0.1); color: #6b7280; }
+    .btn-delete:hover { background: #6b7280; color: white; }
+
+    .alert-success-custom {
+        background: linear-gradient(135deg, rgba(6, 168, 125, 0.1) 0%, rgba(6, 168, 125, 0.05) 100%);
+        border-left: 4px solid #06a77d; border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;
+        display: flex; align-items: center; gap: 12px; color: #06a77d; font-weight: 500; animation: slideIn 0.4s ease-out;
     }
 
-    .btn-view:hover {
-        background: #3b82f6;
-        color: white;
-    }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 
-    .btn-edit {
-        background: rgba(245, 158, 11, 0.1);
-        color: #f59e0b;
-    }
-
-    .btn-edit:hover {
-        background: #f59e0b;
-        color: white;
-    }
-
-    .btn-delete {
-        background: rgba(107, 114, 128, 0.1);
-        color: #6b7280;
-    }
-
-    .btn-delete:hover {
-        background: #6b7280;
-        color: white;
-    }
-
-    .empty-state-full {
-        text-align: center;
-        padding: 60px 40px;
-        color: #9ca3af;
-        grid-column: 1 / -1;
-    }
-
-    .empty-state-full i {
-        font-size: 64px;
-        color: #d1d5db;
-        margin-bottom: 20px;
-        display: block;
-    }
-
-    .empty-state-full h3 {
-        font-size: 22px;
-        font-weight: 700;
-        color: #1f2937;
-        margin: 0 0 8px 0;
-    }
-
-    .empty-state-full p {
-        margin: 0;
-        font-size: 15px;
-    }
-
-    .pagination-wrapper {
-        display: flex;
-        justify-content: center;
-        padding: 20px 0;
-    }
+    .modal-content-custom { border: 1px solid rgba(0, 0, 0, 0.08); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15); }
+    .modal-header-custom { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
 
     @media (max-width: 768px) {
-        .page-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 16px;
-        }
-
-        .records-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .filter-form {
-            grid-template-columns: 1fr;
-        }
-
-        .time-grid {
-            grid-template-columns: 1fr;
-        }
+        .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+        .records-grid { grid-template-columns: 1fr; }
+        .filter-form { grid-template-columns: 1fr; }
     }
 </style>
+
+<div class="page-wrapper">
+    <div class="page-header mb-5">
+        <div class="header-content">
+            <h1 class="page-title">Attendance Records</h1>
+            <p class="page-subtitle">Track and manage attendance data</p>
+        </div>
+        <a href="{{ route('attendances.create') }}" class="btn btn-create">
+            <i class="fas fa-plus"></i> Add Record
+        </a>
+    </div>
+
+    @if(session('success'))
+        <div class="alert-success-custom">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ session('success') }}</span>
+        </div>
+    @endif
+
+    <div class="filter-card">
+        <form method="GET" class="filter-form">
+            <div class="filter-group">
+                <input type="text" name="name" class="filter-input" placeholder="Search by name..." value="{{ request('name') }}">
+            </div>
+            
+            <div class="filter-group">
+                <select name="role" class="filter-input">
+                    <option value="">All Roles</option>
+                    @foreach($roles as $role)
+                        <option value="{{ $role }}" {{ request('role') == $role ? 'selected' : '' }}>{{ ucfirst($role) }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <select name="status" class="filter-input">
+                    <option value="">All Status</option>
+                    @foreach(['present', 'absent', 'late', 'leave', 'sick'] as $status)
+                        <option value="{{ $status }}" {{ request('status') == $status ? 'selected' : '' }}>{{ ucfirst($status) }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <input type="date" name="date" class="filter-input" value="{{ request('date') }}">
+            </div>
+
+            <button type="submit" class="btn-filter">
+                <i class="fas fa-search"></i> Filter
+            </button>
+        </form>
+    </div>
+
+    <div class="records-grid">
+        @forelse($attendances as $attendance)
+            <div class="record-card">
+                <div class="record-header">
+                    <div class="record-icon"><i class="fas fa-user-check"></i></div>
+                    <h3>{{ $attendance->user->name ?? 'N/A' }}</h3>
+                </div>
+
+                <div class="record-body">
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-value">{{ \Carbon\Carbon::parse($attendance->date)->format('M d, Y') }}</div>
+                            <div class="stat-label">Date</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value">
+                                <span class="status-badge status-{{ $attendance->status }}">{{ ucfirst($attendance->status) }}</span>
+                            </div>
+                            <div class="stat-label">Status</div>
+                        </div>
+                    </div>
+
+                    <div class="record-details">
+                        <div class="detail-group">
+                            <p class="detail-label">Time Info:</p>
+                            <div class="detail-text">
+                                <i class="fas fa-sign-in-alt" style="color: #0d3b66;"></i> {{ $attendance->check_in ?? '--:--' }}
+                                &nbsp;|&nbsp;
+                                <i class="fas fa-sign-out-alt" style="color: #0d3b66;"></i> {{ $attendance->check_out ?? '--:--' }}
+                            </div>
+                        </div>
+                        <div class="detail-group" style="margin-top: 12px;">
+                            <p class="detail-label">Notes:</p>
+                            <div class="detail-text">{{ $attendance->notes ?? 'No details provided' }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="record-footer">
+                    <a href="{{ route('attendances.show', $attendance) }}" class="btn-action btn-view">View</a>
+                    <a href="{{ route('attendances.edit', $attendance) }}" class="btn-action btn-edit">Edit</a>
+                    <button type="button" class="btn-action btn-delete" 
+                            data-bs-toggle="modal" data-bs-target="#deleteModal" 
+                            data-action="{{ route('attendances.destroy', $attendance) }}">Delete</button>
+                </div>
+            </div>
+        @empty
+            <div class="empty-state-full" style="grid-column: 1/-1; text-align: center; padding: 60px;">
+                <i class="fas fa-calendar-times" style="font-size: 64px; color: #d1d5db; margin-bottom: 20px; display: block;"></i>
+                <h3>No records found</h3>
+                <p>Try adjusting your filters or add a new record.</p>
+            </div>
+        @endforelse
+    </div>
+
+    @if($attendances->hasPages())
+        <div class="pagination-wrapper d-flex justify-content-center">
+            {{ $attendances->links() }}
+        </div>
+    @endif
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-content-custom">
+            <div class="modal-header modal-header-custom">
+                <h5 class="modal-title font-weight-bold" style="color: #0d3b66;">Delete Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p>Are you sure you want to delete this record? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-form" method="POST" style="display:inline;">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger px-4">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) {
+            deleteModal.addEventListener('show.bs.modal', function (event) {
+                var button = event.relatedTarget;
+                var action = button.getAttribute('data-action');
+                var form = deleteModal.querySelector('#delete-form');
+                form.action = action;
+            });
+        }
+    });
+</script>
+@endsection

@@ -53,51 +53,67 @@
         @forelse($absences as $absence)
             <div class="record-card">
                 <div class="record-header">
-                    <div class="record-title">
-                        <h3>{{ $absence->employee_name }}</h3>
-                        <p>{{ $absence->date->format('M d, Y') }}</p>
+                    <div class="record-icon">
+                        <i class="fas fa-user-clock"></i>
                     </div>
-                    <span class="status-badge status-{{ $absence->status }}">{{ ucfirst($absence->status) }}</span>
+                    <h3>{{ $absence->employee_name }}</h3>
                 </div>
+                
                 <div class="record-body">
-                    <div class="record-item">
-                        <label>Reason:</label>
-                        <span>{{ ucfirst($absence->reason) }}</span>
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-value">{{ $absence->date->format('M d, Y') }}</div>
+                            <div class="stat-label">Date</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value">
+                                <span class="status-badge status-{{ $absence->status }}">{{ ucfirst($absence->status) }}</span>
+                            </div>
+                            <div class="stat-label">Status</div>
+                        </div>
                     </div>
-                    <div class="record-item">
-                        <label>Details:</label>
-                        <span>{{ $absence->details ?? 'No details provided' }}</span>
+                    
+                    <div class="record-details">
+                        <div class="detail-group">
+                            <p class="detail-label">Reason:</p>
+                            <div class="detail-text">{{ ucfirst($absence->reason) }}</div>
+                        </div>
+                        <div class="detail-group" style="margin-top: 12px;">
+                            <p class="detail-label">Details:</p>
+                            <div class="detail-text">{{ $absence->details ?? 'No details provided' }}</div>
+                        </div>
                     </div>
                 </div>
+                
                 <div class="record-footer">
                     <a href="{{ route('absences.show', $absence) }}" class="btn-action btn-view" title="View">
                         <i class="fas fa-eye"></i> View
                     </a>
+                    
                     @if($absence->status == 'pending')
-                        <form method="POST" action="{{ route('absences.approve', $absence) }}" style="display:inline;">
+                        <form method="POST" action="{{ route('absences.approve', $absence) }}" style="display:inline; flex: 1;">
                             @csrf
-                            <button type="submit" class="btn-action btn-approve" title="Approve">
+                            <button type="submit" class="btn-action btn-approve w-100" title="Approve">
                                 <i class="fas fa-check"></i> Approve
                             </button>
                         </form>
-                        <form method="POST" action="{{ route('absences.reject', $absence) }}" style="display:inline;">
+                        <form method="POST" action="{{ route('absences.reject', $absence) }}" style="display:inline; flex: 1;">
                             @csrf
-                            <button type="submit" class="btn-action btn-reject" title="Reject">
+                            <button type="submit" class="btn-action btn-reject w-100" title="Reject">
                                 <i class="fas fa-times"></i> Reject
                             </button>
                         </form>
                     @endif
+                    
                     <a href="{{ route('absences.edit', $absence) }}" class="btn-action btn-edit" title="Edit">
                         <i class="fas fa-edit"></i> Edit
                     </a>
-                    <form method="POST" action="{{ route('absences.destroy', $absence) }}" 
-                        style="display:inline;" onsubmit="return confirm('Delete this record?')">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn-action btn-delete" title="Delete">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </form>
+                    
+                    <button type="button" class="btn-action btn-delete delete-btn"
+                        data-bs-toggle="modal" data-bs-target="#deleteModal"
+                        data-action="{{ route('absences.destroy', $absence) }}" title="Delete">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
                 </div>
             </div>
         @empty
@@ -116,20 +132,37 @@
     @endif
 </div>
 
+<!-- Delete Confirmation Modal (Aligned with Roles design) -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-content-custom">
+            <div class="modal-header modal-header-custom">
+                <h5 class="modal-title">Delete Absence Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body modal-body-custom">
+                <p>Are you sure you want to delete this record? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer modal-footer-custom">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-form" method="POST" style="display:inline;">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     .page-wrapper {
         animation: fadeInUp 0.5s ease-out;
     }
 
     @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .page-header {
@@ -237,7 +270,7 @@
 
     .records-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
         gap: 24px;
         margin-bottom: 32px;
     }
@@ -258,83 +291,120 @@
         box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
     }
 
+    /* Updated Card Header to match Roles */
     .record-header {
-        padding: 20px;
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 24px 20px;
+        background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%);
+        color: white;
+        text-align: center;
     }
 
-    .record-title h3 {
-        font-size: 18px;
+    .record-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+        opacity: 0.9;
+    }
+
+    .record-header h3 {
+        font-size: 24px;
         font-weight: 700;
-        color: #0d3b66;
-        margin: 0 0 6px 0;
-    }
-
-    .record-title p {
-        font-size: 13px;
-        color: #6b7280;
         margin: 0;
-    }
-
-    .status-badge {
-        padding: 6px 14px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        white-space: nowrap;
-    }
-
-    .status-pending {
-        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
         color: white;
-        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-    }
-
-    .status-approved {
-        background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-
-    .status-rejected {
-        background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
     }
 
     .record-body {
         padding: 20px;
         flex: 1;
+        display: flex;
+        flex-direction: column;
     }
 
-    .record-item {
-        margin-bottom: 12px;
+    /* Updated Stat Grid to match Roles permissions stat */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
     }
 
-    .record-item:last-child {
-        margin-bottom: 0;
+    .stat-box {
+        text-align: center;
+        padding: 12px;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-radius: 12px;
+        border: 1px solid #b3e5fc;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
     }
 
-    .record-item label {
+    .stat-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: #0d3b66;
+        margin-bottom: 4px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: #6b7280;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+        display: inline-block;
+    }
+
+    .status-pending {
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+    }
+
+    .status-approved {
+        background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .status-rejected {
+        background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    }
+
+    /* Matching details section to Roles preview */
+    .record-details {
+        flex: 1;
+        background: #f9fafb;
+        border-radius: 10px;
+        padding: 16px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .detail-label {
         font-size: 12px;
         font-weight: 700;
         color: #6b7280;
         text-transform: uppercase;
         letter-spacing: 0.3px;
-        display: block;
-        margin-bottom: 4px;
+        margin: 0 0 4px 0;
     }
 
-    .record-item span {
-        font-size: 15px;
+    .detail-text {
+        font-size: 14px;
         color: #1f2937;
+        font-weight: 500;
     }
 
     .record-footer {
@@ -362,55 +432,24 @@
         min-height: 36px;
     }
 
-    .btn-view {
-        background: rgba(59, 130, 246, 0.1);
-        color: #3b82f6;
+    .w-100 {
+        width: 100%;
     }
 
-    .btn-view:hover {
-        background: #3b82f6;
-        color: white;
-    }
+    .btn-view { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+    .btn-view:hover { background: #3b82f6; color: white; }
 
-    .btn-approve {
-        background: rgba(16, 185, 129, 0.1);
-        color: #10b981;
-    }
+    .btn-approve { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+    .btn-approve:hover { background: #10b981; color: white; }
 
-    .btn-approve:hover {
-        background: #10b981;
-        color: white;
-    }
+    .btn-reject { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+    .btn-reject:hover { background: #ef4444; color: white; }
 
-    .btn-reject {
-        background: rgba(239, 68, 68, 0.1);
-        color: #ef4444;
-    }
+    .btn-edit { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+    .btn-edit:hover { background: #f59e0b; color: white; }
 
-    .btn-reject:hover {
-        background: #ef4444;
-        color: white;
-    }
-
-    .btn-edit {
-        background: rgba(245, 158, 11, 0.1);
-        color: #f59e0b;
-    }
-
-    .btn-edit:hover {
-        background: #f59e0b;
-        color: white;
-    }
-
-    .btn-delete {
-        background: rgba(107, 114, 128, 0.1);
-        color: #6b7280;
-    }
-
-    .btn-delete:hover {
-        background: #6b7280;
-        color: white;
-    }
+    .btn-delete { background: rgba(107, 114, 128, 0.1); color: #6b7280; }
+    .btn-delete:hover { background: #6b7280; color: white; }
 
     .empty-state-full {
         text-align: center;
@@ -433,15 +472,33 @@
         margin: 0 0 8px 0;
     }
 
-    .empty-state-full p {
-        margin: 0;
-        font-size: 15px;
-    }
+    .empty-state-full p { margin: 0; font-size: 15px; }
 
     .pagination-wrapper {
         display: flex;
         justify-content: center;
         padding: 20px 0;
+    }
+
+    /* Modal Styling */
+    .modal-content-custom {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+    .modal-header-custom {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    .modal-header-custom .modal-title {
+        color: #0d3b66;
+        font-weight: 700;
+    }
+    .modal-body-custom {
+        color: #4b5563;
+        font-size: 15px;
+    }
+    .modal-footer-custom {
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
     }
 
     @media (max-width: 768px) {
@@ -450,13 +507,26 @@
             align-items: flex-start;
             gap: 16px;
         }
-
         .records-grid {
             grid-template-columns: 1fr;
         }
-
         .filter-form {
             grid-template-columns: 1fr;
         }
     }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) {
+            deleteModal.addEventListener('show.bs.modal', function (event) {
+                var button = event.relatedTarget;
+                var action = button.getAttribute('data-action');
+                var form = deleteModal.querySelector('#delete-form');
+                form.action = action;
+            });
+        }
+    });
+</script>
+@endsection
