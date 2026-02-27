@@ -11,28 +11,31 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable, HasRoles;
 
-    protected $fillable = ['name', 'email', 'password'];
-    protected $hidden = ['password', 'remember_token'];
+    protected $fillable = [
+        'name', 
+        'email', 
+        'password', 
+        'salt'
+    ];
+
+    protected $hidden = [
+        'password', 
+        'remember_token', 
+        'salt'
+    ];
 
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
         ];
     }
 
-    /**
-     * Get the attendance records for this user
-     */
     public function attendances()
     {
         return $this->hasMany(\App\Models\Attendance::class);
     }
 
-    /**
-     * Get the absence records for this user
-     */
     public function absences()
     {
         return $this->hasMany(\App\Models\Absence::class);

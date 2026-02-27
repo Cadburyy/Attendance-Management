@@ -123,7 +123,7 @@ class HomeController extends Controller
             ];
         }
         
-        $recentLogins = \DB::table('sessions')
+        $recentLogins = DB::table('sessions')
             ->where('user_id', $user->id)
             ->where('last_activity', '>=', now()->subMinutes(5)->timestamp)
             ->count();

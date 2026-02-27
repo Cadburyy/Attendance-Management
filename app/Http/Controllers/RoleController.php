@@ -5,10 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use DB;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 class RoleController extends Controller
@@ -18,13 +19,9 @@ class RoleController extends Controller
         $this->middleware('permission:role');
     }
 
-    /**
-     * Helper to prevent users without 'setting' permission from modifying roles that have it.
-     * Throws ValidationException to ensure messages appear in the standard error block.
-     */
     private function protectSettingRole(Role $role): void
     {
-        if (!Auth::user()->can('setting') && $role->hasPermissionTo('setting')) {
+        if (Gate::denies('setting') && $role->hasPermissionTo('setting')) {
             throw ValidationException::withMessages([
                 'error' => ["Can't edit this role."]
             ]);
@@ -51,13 +48,11 @@ class RoleController extends Controller
             'permission' => 'required',
         ]);
 
-        $permissionsID = array_map(function ($value) {
-            return (int)$value;
-        }, $request->input('permission'));
+        $permissionsID = array_map(fn($value) => (int)$value, $request->input('permission'));
 
         $settingPermission = Permission::where('name', 'setting')->first();
         if ($settingPermission && in_array($settingPermission->id, $permissionsID)) {
-            if (!Auth::user()->can('setting')) {
+            if (Gate::denies('setting')) {
                 throw ValidationException::withMessages([
                     'permission' => ["Can't assign setting permission."]
                 ]);
@@ -73,13 +68,14 @@ class RoleController extends Controller
 
     public function edit($id): View
     {
-        $role = Role::find($id);
+        $role = Role::findOrFail($id);
 
         $this->protectSettingRole($role);
 
         $permission = Permission::get();
-        $rolePermissions = DB::table("role_has_permissions")->where("role_has_permissions.role_id", $id)
-            ->pluck('role_has_permissions.permission_id', 'role_has_permissions.permission_id')
+        $rolePermissions = DB::table("role_has_permissions")
+            ->where("role_id", $id)
+            ->pluck('permission_id', 'permission_id')
             ->all();
 
         return view('roles.edit', compact('role', 'permission', 'rolePermissions'));
@@ -92,17 +88,15 @@ class RoleController extends Controller
             'permission' => 'required',
         ]);
 
-        $role = Role::find($id);
+        $role = Role::findOrFail($id);
 
         $this->protectSettingRole($role);
 
-        $permissionsID = array_map(function ($value) {
-            return (int)$value;
-        }, $request->input('permission'));
+        $permissionsID = array_map(fn($value) => (int)$value, $request->input('permission'));
 
         $settingPermission = Permission::where('name', 'setting')->first();
         if ($settingPermission && in_array($settingPermission->id, $permissionsID)) {
-            if (!Auth::user()->can('setting')) {
+            if (Gate::denies('setting')) {
                 throw ValidationException::withMessages([
                     'permission' => ["Can't assign setting permission."]
                 ]);
@@ -119,7 +113,7 @@ class RoleController extends Controller
 
     public function destroy($id): RedirectResponse
     {
-        $role = Role::find($id);
+        $role = Role::findOrFail($id);
 
         $this->protectSettingRole($role);
 
