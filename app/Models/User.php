@@ -15,13 +15,20 @@ class User extends Authenticatable
         'name', 
         'email', 
         'password', 
-        'salt'
+        'salt',
+        'role',
+        'picture',
+        'encrypted_dek',
+        'picture_iv',
+        'dek_iv'
     ];
 
     protected $hidden = [
         'password', 
         'remember_token', 
-        'salt'
+        'salt',
+        'encrypted_dek',
+        'dek_iv'
     ];
 
     protected function casts(): array
