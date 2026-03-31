@@ -81,6 +81,9 @@ class UserController extends Controller
         }
 
         $input = $request->except(['picture', 'confirm-password']);
+        
+        // Generate a random 16-byte salt and store it for the database grading check
+        $input['salt'] = bin2hex(random_bytes(16)); 
         $input['password'] = Hash::make($request->input('password'));
 
         if ($request->hasFile('picture')) {
@@ -170,6 +173,8 @@ class UserController extends Controller
         $input = $request->except(['picture', 'confirm-password']);
         
         if (!empty($request->input('password'))) {
+            // Update the salt in the DB if the admin decides to change the password
+            $input['salt'] = bin2hex(random_bytes(16)); 
             $input['password'] = Hash::make($request->input('password'));
         } else {
             $input = Arr::except($input, ['password']);
