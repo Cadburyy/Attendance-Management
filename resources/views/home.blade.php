@@ -15,7 +15,7 @@
                 <div class="alert alert-{{ $anomaly['type'] }} alert-dismissible fade show alerts-custom" role="alert">
                     <div class="d-flex gap-3 align-items-start">
                         <i class="fas {{ $anomaly['icon'] }} fa-lg mt-1"></i>
-                        <div class="grow"> {{-- Fixed: grow instead of flex-grow-1 --}}
+                        <div class="grow">
                             <strong class="d-block mb-1">{{ $anomaly['title'] }}</strong>
                             <p class="mb-0 text-opacity-85">{{ $anomaly['message'] }}</p>
                         </div>
@@ -70,7 +70,7 @@
                 </div>
                 <div class="stat-content">
                     <p class="stat-label">Permintaan Tertunda</p>
-                    <h2 class="stat-value">{{ $pendingAbsences }}</h2>
+                    <h2 class="stat-value">{{ $pendingOverrides }}</h2>
                 </div>
             </div>
         </div>
@@ -104,7 +104,7 @@
         <div class="col-lg-6">
             <div class="chart-card">
                 <div class="chart-header">
-                    <h5 class="mb-0">Ringkasan Absensi 7 Hari</h5>
+                    <h5 class="mb-0">Permintaan Perubahan 7 Hari</h5>
                 </div>
                 <div class="chart-body">
                     <canvas id="absenceChart"></canvas>
@@ -115,23 +115,23 @@
         <div class="col-lg-6">
             <div class="chart-card">
                 <div class="chart-header">
-                    <h5 class="mb-0">Permintaan Absensi Terbaru</h5>
+                    <h5 class="mb-0">Permintaan Perubahan Terbaru</h5>
                 </div>
                 <div class="absence-list">
-                    @forelse($recentAbsences as $absence)
+                    @forelse($recentOverrides as $override)
                         <div class="absence-item">
                             <div class="absence-info">
-                                <p class="absence-name">{{ $absence->employee_name }}</p>
-                                <small class="absence-details">{{ $absence->date->format('M d, Y') }} • {{ ucfirst($absence->reason) }}</small>
+                                <p class="absence-name">{{ $override->user->name }}</p>
+                                <small class="absence-details">{{ $override->date->format('M d, Y') }} • Ke {{ ucfirst($override->requested_status) }}</small>
                             </div>
-                            <span class="badge-status bg-{{ $absence->status == 'pending' ? 'warning' : ($absence->status == 'approved' ? 'success' : 'danger') }}">
-                                {{ ucfirst($absence->status) }}
+                            <span class="badge-status bg-warning text-dark">
+                                Menunggu
                             </span>
                         </div>
                     @empty
                         <div class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            <p>Tidak ada permintaan absensi terbaru</p>
+                            <i class="fas fa-check-circle" style="color: #10b981; opacity: 0.5;"></i>
+                            <p>Tidak ada permintaan perubahan terbaru</p>
                         </div>
                     @endforelse
                 </div>
@@ -141,7 +141,6 @@
 </div>
 
 <style>
-    /* ... (Styles remain the same as your original) ... */
     .dashboard-container { animation: fadeIn 0.6s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     .dashboard-header { padding: 10px 0; }
@@ -164,7 +163,7 @@
     .absence-item:hover { background: rgba(13, 59, 102, 0.02); padding-left: 10px; }
     .absence-name { font-weight: 600; color: #1f2937; margin: 0 0 6px 0; font-size: 15px; }
     .absence-details { color: #9ca3af; font-size: 13px; margin: 0; }
-    .badge-status { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+    .badge-status { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
     .empty-state { text-align: center; padding: 40px 20px; color: #9ca3af; }
     .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 12px; display: block; }
     .empty-state p { margin: 0; font-size: 15px; }
@@ -173,12 +172,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Using JSON.parse to help the IDE understand this is data, not code
         const labels = JSON.parse('{!! json_encode($labels) !!}');
         const presentData = JSON.parse('{!! json_encode($presentData) !!}');
         const absentData = JSON.parse('{!! json_encode($absentData) !!}');
         const lateData = JSON.parse('{!! json_encode($lateData) !!}');
-        const absenceData = JSON.parse('{!! json_encode($absenceData) !!}');
+        const overrideRequestData = JSON.parse('{!! json_encode($overrideRequestData) !!}');
         const monthlyStats = JSON.parse('{!! json_encode($monthlyStats) !!}');
 
         const colors = {
@@ -223,7 +221,7 @@
                             pointBorderWidth: 2,
                         },
                         {
-                            label: 'Absen',
+                            label: 'Absen/Sakit/Izin',
                             data: absentData,
                             borderColor: colors.danger,
                             backgroundColor: 'rgba(230, 57, 70, 0.08)',
@@ -287,8 +285,8 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Permintaan Absensi',
-                        data: absenceData,
+                        label: 'Permintaan Perubahan Status',
+                        data: overrideRequestData,
                         backgroundColor: colors.danger,
                         borderRadius: 10,
                     }]

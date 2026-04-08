@@ -10,22 +10,22 @@
             </div>
         </div>
 
-        @if($errors->any())
-            <div class="alert-error">
-                <i class="fas fa-exclamation-circle"></i>
-                <div class="alert-content">
-                    <strong>Validation Errors:</strong>
-                    <ul class="error-list">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            </div>
-        @endif
-
         <form method="POST" action="{{ route('attendances.store') }}" class="modern-form">
             @csrf
+
+            @if($errors->any())
+                <div class="alert-error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div class="alert-content">
+                        <strong>Validation Errors:</strong>
+                        <ul class="error-list">
+                            @foreach($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            @endif
 
             <div class="form-group">
                 <label for="user_id" class="form-label">Employee <span class="required">*</span></label>
@@ -46,7 +46,12 @@
                 <div class="form-group">
                     <label for="date" class="form-label">Date <span class="required">*</span></label>
                     <input type="date" class="form-input @error('date') error @enderror" 
-                        id="date" name="date" value="{{ old('date') }}" required>
+                        id="date" name="date" value="{{ old('date', now()->toDateString()) }}" 
+                        @if(!auth()->user()->can('override'))
+                        min="{{ now()->subDay()->toDateString() }}" 
+                        max="{{ now()->addDay()->toDateString() }}"
+                        @endif
+                        required>
                     @error('date')
                         <span class="error-text">{{ $message }}</span>
                     @enderror
@@ -91,7 +96,7 @@
             <div class="form-group">
                 <label for="notes" class="form-label">Notes</label>
                 <textarea class="form-input textarea @error('notes') error @enderror" 
-                    id="notes" name="notes" rows="4" placeholder="Additional notes (optional)">{{ old('notes') }}</textarea>
+                    id="notes" name="notes" rows="2" placeholder="Additional notes (optional)">{{ old('notes') }}</textarea>
                 @error('notes')
                     <span class="error-text">{{ $message }}</span>
                 @enderror
@@ -111,23 +116,21 @@
 
 <style>
     .form-wrapper {
-        min-height: 100vh;
+        min-height: calc(100vh - 100px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         animation: fadeInUp 0.5s ease-out;
     }
 
     @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .form-container {
-        max-width: 780px;
+        max-width: 680px;
+        width: 100%;
         background: white;
         border-radius: 16px;
         overflow: hidden;
@@ -138,45 +141,46 @@
     .form-header {
         background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%);
         color: white;
-        padding: 40px 32px;
+        padding: 24px 32px;
     }
 
     .form-title {
-        font-size: 28px;
+        font-size: 24px;
         font-weight: 700;
-        margin: 0 0 8px 0;
+        margin: 0 0 4px 0;
     }
 
     .form-subtitle {
-        font-size: 15px;
+        font-size: 14px;
         opacity: 0.9;
         margin: 0;
     }
 
     .form-container > form {
-        padding: 40px 32px;
+        padding: 24px 32px;
     }
 
     .alert-error {
         background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
         border-left: 4px solid #ef4444;
         border-radius: 10px;
-        padding: 16px 20px;
+        padding: 14px 20px;
         display: flex;
         gap: 12px;
-        margin-bottom: 24px;
         color: #991b1b;
+        margin-bottom: 16px;
     }
 
     .alert-error i {
-        font-size: 20px;
+        font-size: 18px;
         flex-shrink: 0;
         margin-top: 2px;
     }
 
     .alert-content strong {
         display: block;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
+        font-size: 14px;
     }
 
     .error-list {
@@ -186,30 +190,30 @@
     }
 
     .error-list li {
-        padding: 4px 0;
-        font-size: 14px;
+        padding: 2px 0;
+        font-size: 13px;
     }
 
     .modern-form {
         display: flex;
         flex-direction: column;
-        gap: 24px;
+        gap: 16px;
     }
 
     .form-group {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
     }
 
     .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 20px;
+        gap: 16px;
     }
 
     .form-label {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 700;
         color: #1f2937;
         text-transform: uppercase;
@@ -225,13 +229,15 @@
 
     .form-input {
         width: 100%;
-        padding: 12px 16px;
+        height: 46px;
+        padding: 10px 16px;
         border: 2px solid #e5e7eb;
         border-radius: 10px;
-        font-size: 15px;
+        font-size: 14px;
         font-family: inherit;
         transition: all 0.3s ease;
         background: #f9fafb;
+        box-sizing: border-box;
     }
 
     .form-input:focus {
@@ -251,12 +257,14 @@
     }
 
     .form-input.textarea {
+        height: auto;
+        min-height: 80px;
         resize: vertical;
-        padding: 14px 16px;
+        padding: 12px 16px;
     }
 
     .error-text {
-        font-size: 13px;
+        font-size: 12px;
         color: #ef4444;
         font-weight: 500;
     }
@@ -264,11 +272,12 @@
     .form-actions {
         display: flex;
         gap: 12px;
-        margin-top: 16px;
+        margin-top: 8px;
     }
 
     .btn {
-        padding: 12px 24px;
+        height: 46px;
+        padding: 0 24px;
         border: none;
         border-radius: 10px;
         font-weight: 700;
@@ -277,11 +286,12 @@
         transition: all 0.3s ease;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
         text-decoration: none;
         text-align: center;
         flex: 1;
-        justify-content: center;
+        box-sizing: border-box;
     }
 
     .btn-submit {
@@ -307,16 +317,8 @@
     }
 
     @media (max-width: 768px) {
-        .form-header {
-            padding: 30px 20px;
-        }
-
-        .form-container > form {
-            padding: 30px 20px;
-        }
-
-        .form-title {
-            font-size: 24px;
+        .form-header, .form-container > form {
+            padding: 24px 20px;
         }
 
         .form-row {
@@ -326,21 +328,6 @@
         .form-actions {
             flex-direction: column;
         }
-
-        .btn {
-            flex: unset;
-            width: 100%;
-        }
     }
 </style>
-@endsection
-
-                            </a>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection

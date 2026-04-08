@@ -16,6 +16,11 @@ class Attendance extends Model
         'check_out',
         'status',
         'notes',
+        'override_status',
+        'requested_status',
+        'requested_check_in',
+        'requested_check_out',
+        'override_reason',
     ];
 
     protected $casts = [

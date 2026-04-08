@@ -5,9 +5,6 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use App\Models\User;
-use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
@@ -21,36 +18,23 @@ class LoginController extends Controller
         $this->middleware('auth')->only('logout');
     }
 
-    public function login(Request $request)
-    {
-        $this->validateLogin($request);
-
-        $login = $request->input('name');
-        $fieldType = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'name';
-
-        $user = User::where($fieldType, $login)->first();
-
-        if ($user && $user->salt) {
-            $salt = hex2bin($user->salt);
-            $hash = hash_pbkdf2("sha256", $request->password, $salt, 600000, 32);
-
-            if (hash_equals($user->password, bin2hex($hash))) {
-                Auth::login($user, $request->filled('remember'));
-                return $this->sendLoginResponse($request);
-            }
-        }
-
-        return $this->sendFailedLoginResponse($request);
-    }
-
+    /**
+     * Define the input field name used in the login form.
+     */
     public function username()
     {
         return 'name';
     }
 
+    /**
+     * Override the credentials method to allow login via Email OR Name.
+     * Laravel will automatically use Hash::check() against the Bcrypt password in the DB.
+     */
     protected function credentials(Request $request)
     {
-        $login = $request->input('name');
+        $login = $request->input($this->username());
+        
+        // Check if the input is a valid email format, otherwise assume it's a name
         $fieldType = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'name';
 
         return [

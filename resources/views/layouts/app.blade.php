@@ -221,9 +221,9 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
                         </a>
                     </li>
                 @else
+                    {{-- Notice: The Absensi route has been removed because it is now merged --}}
                     @foreach([
                         ['route' => 'home', 'icon' => 'home', 'label' => 'Home', 'permission' => null],
-                        ['route' => 'absences.index', 'icon' => 'file-alt', 'label' => 'Absensi', 'permission' => ['absence', 'attendance']],
                         ['route' => 'attendances.index', 'icon' => 'clipboard-user', 'label' => 'Attendance', 'permission' => 'attendance'],
                         ['route' => 'users.index', 'icon' => 'users', 'label' => 'Pekerja', 'permission' => 'user'],
                         ['route' => 'roles.index', 'icon' => 'shield-alt', 'label' => 'Roles', 'permission' => 'role'],
@@ -261,7 +261,17 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
         </aside>
 
         <main>
-            <div class="container-fluid">@yield('content')</div>
+            <div class="container-fluid">
+                {{-- Global Error Handling Message Box --}}
+                @if(session('error'))
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%); border-left: 4px solid #ef4444; color: #991b1b; border-radius: 10px; margin-bottom: 24px;">
+                        <i class="fas fa-exclamation-triangle me-2"></i> {{ session('error') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                @endif
+
+                @yield('content')
+            </div>
         </main>
     </div>
 

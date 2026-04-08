@@ -10,16 +10,17 @@
     .btn-create { padding: 12px 24px; background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3); text-decoration: none; }
     .btn-create:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(13, 59, 102, 0.4); color: white; }
     .filter-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); margin-bottom: 32px; border: 1px solid rgba(0, 0, 0, 0.05); }
+    
     .filter-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: center; }
-    .filter-input { width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; transition: all 0.3s ease; font-family: inherit; }
+    .filter-input { width: 100%; height: 48px; padding: 10px 16px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; transition: all 0.3s ease; font-family: inherit; box-sizing: border-box; background-color: white; }
     .filter-input:focus { outline: none; border-color: #0d3b66; box-shadow: 0 0 0 3px rgba(13, 59, 102, 0.1); }
-    .btn-filter { padding: 12px 24px; background: #0d3b66; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+    .btn-filter { height: 48px; padding: 0 24px; background: #0d3b66; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; }
     .btn-filter:hover { background: #0a2d52; transform: translateY(-2px); }
+    
     .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; margin-bottom: 32px; }
     .user-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; align-items: center; text-align: center; }
     .user-card:hover { transform: translateY(-8px); box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12); }
     
-    /* Only using avatar initials, no images displayed for security */
     .avatar-circle { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 700; margin-bottom: 16px; box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3); }
     
     .user-info h3 { font-size: 20px; font-weight: 700; color: #0d3b66; margin: 0 0 6px 0; }

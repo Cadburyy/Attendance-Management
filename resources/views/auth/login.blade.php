@@ -77,11 +77,7 @@
         <div class="row justify-content-center">
             <div class="col-lg-10 col-xl-8">
                 <div class="card card-login shadow-lg">
-                    
-                    <a href="{{ route('absences.create') }}" class="btn-absence">
-                        <span class="absence-icon"></span>
-                        {{ __('Take Absence') }}
-                    </a>
+
 
                     <div class="row g-0 align-items-stretch">
                         <div class="col-md-6 login-left-panel d-flex align-items-center justify-content-center p-5">

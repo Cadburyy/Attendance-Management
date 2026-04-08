@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Attendance;
-use App\Models\Absence;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -24,58 +23,76 @@ class HomeController extends Controller
         
         $startOfMonth = now()->startOfMonth()->toDateString();
         $endOfMonth = now()->endOfMonth()->toDateString();
+
+        $queryBase = Attendance::query();
+        if (!$user->can('override')) {
+            $queryBase->where('user_id', $user->id);
+        }
         
         $monthlyStats = [
-            'present' => Attendance::forDateRange($startOfMonth, $endOfMonth)
-                ->byStatus('present')->count(),
-            'absent' => Attendance::forDateRange($startOfMonth, $endOfMonth)
-                ->byStatus('absent')->count(),
-            'late' => Attendance::forDateRange($startOfMonth, $endOfMonth)
-                ->byStatus('late')->count(),
-            'leave' => Attendance::forDateRange($startOfMonth, $endOfMonth)
-                ->byStatus('leave')->count(),
-            'sick' => Attendance::forDateRange($startOfMonth, $endOfMonth)
-                ->byStatus('sick')->count(),
+            'present' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('present')->count(),
+            'absent' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('absent')->count(),
+            'late' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('late')->count(),
+            'leave' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('leave')->count(),
+            'sick' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('sick')->count(),
         ];
         
-        $totalAttendanceToday = Attendance::where('date', $today)->count();
-        $totalAbsenceToday = Absence::where('date', $today)->count();
+        $totalAttendanceToday = (clone $queryBase)->where('date', $today)->where('status', 'present')->count();
+        $totalAbsenceToday = (clone $queryBase)->where('date', $today)->whereIn('status', ['absent', 'sick', 'leave'])->count();
         
         $labels = [];
         $presentData = [];
         $absentData = [];
         $lateData = [];
-        $absenceData = [];
+        $overrideRequestData = [];
         
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i)->toDateString();
             $labels[] = Carbon::parse($date)->format('M d');
             
-            $presentData[] = Attendance::where('date', $date)
-                ->where('status', 'present')->count();
-            $absentData[] = Attendance::where('date', $date)
-                ->where('status', 'absent')->count();
-            $lateData[] = Attendance::where('date', $date)
-                ->where('status', 'late')->count();
-            $absenceData[] = Absence::where('date', $date)->count();
+            $presentData[] = (clone $queryBase)->where('date', $date)->where('status', 'present')->count();
+            $absentData[] = (clone $queryBase)->where('date', $date)->whereIn('status', ['absent', 'sick', 'leave'])->count();
+            $lateData[] = (clone $queryBase)->where('date', $date)->where('status', 'late')->count();
+            
+            $overrideRequestData[] = (clone $queryBase)->whereDate('updated_at', $date)->whereNotNull('override_status')->count();
         }
         
         $userStats = User::withCount([
-            'attendances' => function ($query) use ($startOfMonth, $endOfMonth) {
+            'attendances as present_count' => function ($query) use ($startOfMonth, $endOfMonth) {
                 $query->forDateRange($startOfMonth, $endOfMonth)->byStatus('present');
             },
             'attendances as absent_count' => function ($query) use ($startOfMonth, $endOfMonth) {
-                $query->forDateRange($startOfMonth, $endOfMonth)->byStatus('absent');
+                $query->forDateRange($startOfMonth, $endOfMonth)->whereIn('status', ['absent', 'sick', 'leave']);
             },
         ])->get();
         
-        $recentAbsences = Absence::orderBy('date', 'desc')->limit(5)->get();
+        $recentOverrides = (clone $queryBase)->with('user')
+            ->where('override_status', 'pending')
+            ->orderBy('updated_at', 'desc')
+            ->limit(5)->get();
         
-        $todayAttendance = Attendance::where('date', $today)->get();
+        $todayAttendance = (clone $queryBase)->where('date', $today)->get();
         
-        $pendingAbsences = Absence::where('status', 'pending')->count();
+        $pendingOverrides = (clone $queryBase)->where('override_status', 'pending')->count();
         
         $anomalies = $this->detectAnomalies($user);
+
+        if (!$user->can('override')) {
+            $todayRecord = Attendance::where('user_id', $user->id)->where('date', $today)->first();
+            if ($todayRecord && $todayRecord->check_in && !$todayRecord->check_out && now()->hour >= 17) {
+                 $anomalies[] = [
+                     'type' => 'warning', 'icon' => 'fa-exclamation-triangle',
+                     'title' => 'Lupa Check-Out', 'message' => 'Anda belum melakukan check-out hari ini.'
+                 ];
+            }
+        } else {
+             if ($pendingOverrides > 0) {
+                 $anomalies[] = [
+                     'type' => 'info', 'icon' => 'fa-info-circle',
+                     'title' => 'Permintaan Menunggu', 'message' => "Ada $pendingOverrides permintaan perubahan status yang perlu persetujuan Anda."
+                 ];
+             }
+        }
 
         return view('home', compact(
             'monthlyStats',
@@ -83,11 +100,11 @@ class HomeController extends Controller
             'presentData',
             'absentData',
             'lateData',
-            'absenceData',
+            'overrideRequestData',
             'userStats',
-            'recentAbsences',
+            'recentOverrides',
             'todayAttendance',
-            'pendingAbsences',
+            'pendingOverrides',
             'totalAttendanceToday',
             'totalAbsenceToday',
             'anomalies',
@@ -136,10 +153,12 @@ class HomeController extends Controller
                 'icon' => 'fa-shield'
             ];
         }
-        
-        $monthAbsenceCount = Absence::forUser($user->id)
+
+        $monthAbsenceCount = Attendance::forUser($user->id)
             ->forDateRange(now()->startOfMonth(), now()->endOfMonth())
+            ->whereIn('status', ['absent', 'sick', 'leave'])
             ->count();
+
         $workingDaysInMonth = $this->getWorkingDaysCount(now()->startOfMonth(), now()->endOfMonth());
         
         if ($workingDaysInMonth > 0 && ($monthAbsenceCount / $workingDaysInMonth) > 0.3) {

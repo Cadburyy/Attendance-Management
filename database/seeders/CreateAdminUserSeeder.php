@@ -6,28 +6,48 @@ use Illuminate\Database\Seeder;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Illuminate\Support\Facades\Hash;
 
 class CreateAdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        $plainPassword = 'adminit';
-        $salt = random_bytes(16);
-        $iterations = 600000;
-        $hash = hash_pbkdf2("sha256", $plainPassword, $salt, $iterations, 32);
-
-        $user = User::create([
+        $adminUser = User::create([
             'name' => 'Admin', 
             'email' => 'admin@gmail.com',
-            'password' => bin2hex($hash),
-            'salt' => bin2hex($salt),
+            'password' => Hash::make('adminit'),
+            'salt' => bin2hex(random_bytes(16)),
         ]);
 
-        $role = Role::create(['name' => 'AdminIT']);
-
+        $adminRole = Role::firstOrCreate(['name' => 'AdminIT']);
         $permissions = Permission::pluck('id','id')->all();
-        $role->syncPermissions($permissions);
+        $adminRole->syncPermissions($permissions);
+        $adminUser->assignRole([$adminRole->id]);
 
-        $user->assignRole([$role->id]);
+        Permission::firstOrCreate(['name' => 'attendance']);
+        Permission::firstOrCreate(['name' => 'override']);
+        Permission::firstOrCreate(['name' => 'user']);
+
+        $employeeUser = User::create([
+            'name' => 'test', 
+            'email' => 'test@gmail.com',
+            'password' => Hash::make('123123'),
+            'salt' => bin2hex(random_bytes(16)),
+        ]);
+
+        $employeeRole = Role::firstOrCreate(['name' => 'Employee']);
+        $employeeRole->syncPermissions(['attendance']);
+        $employeeUser->assignRole([$employeeRole->id]);
+
+        $hrUser = User::create([
+            'name' => 'hr', 
+            'email' => 'hr@gmail.com',
+            'password' => Hash::make('123123'),
+            'salt' => bin2hex(random_bytes(16)),
+        ]);
+
+        $hrRole = Role::firstOrCreate(['name' => 'HR']);
+        $hrRole->syncPermissions(['attendance', 'override', 'user']);
+        $hrUser->assignRole([$hrRole->id]);
     }
 }

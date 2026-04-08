@@ -15,6 +15,7 @@ class PermissionTableSeeder extends Seeder
             'role',
             'user',
             'setting',
+            'override',
         ];
 
         foreach ($permissions as $permission) {

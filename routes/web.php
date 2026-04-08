@@ -6,7 +6,6 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AttendanceController;
-use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\SettingsController;
 
 Route::get('/', function () {
@@ -21,17 +20,17 @@ Auth::routes();
 Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('/attendances/approvals', [AttendanceController::class, 'approvals'])->name('attendances.approvals');
+    Route::post('/attendances/{attendance}/request-override', [AttendanceController::class, 'requestOverride'])->name('attendances.requestOverride');
+    Route::post('/attendances/{attendance}/approve', [AttendanceController::class, 'approveOverride'])->name('attendances.approve');
+    Route::post('/attendances/{attendance}/reject', [AttendanceController::class, 'rejectOverride'])->name('attendances.reject');
+    
     Route::resource('attendances', AttendanceController::class);
     Route::post('/attendances/bulk-destroy', [AttendanceController::class, 'bulkDestroy'])->name('attendances.bulkDestroy');
     Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');
     Route::post('/check-out', [AttendanceController::class, 'checkOut'])->name('check-out');
     Route::get('/attendance-stats', [AttendanceController::class, 'getStats'])->name('attendance.stats');
 
-    Route::resource('absences', AbsenceController::class);
-    Route::post('/absences/bulk-destroy', [AbsenceController::class, 'bulkDestroy'])->name('absences.bulkDestroy');
-    Route::post('/absences/{absence}/approve', [AbsenceController::class, 'approve'])->name('absences.approve');
-    Route::post('/absences/{absence}/reject', [AbsenceController::class, 'reject'])->name('absences.reject');
-    
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::put('/settings', [SettingsController::class, 'updateAppearance'])->name('settings.update');
     
