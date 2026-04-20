@@ -310,6 +310,10 @@ class AttendanceController extends Controller
             'check_in' => $attendance->requested_check_in ?? $attendance->check_in,
             'check_out' => $attendance->requested_check_out ?? $attendance->check_out,
             'override_status' => 'override',
+            'requested_status' => null,
+            'requested_check_in' => null,
+            'requested_check_out' => null,
+            'override_reason' => null
         ]);
 
         return redirect()->back()->with('success', 'Request accepted! It has been added to the main attendance records.');
@@ -328,8 +332,75 @@ class AttendanceController extends Controller
 
         $attendance->update([
             'override_status' => 'rejected',
+            'requested_status' => null,
+            'requested_check_in' => null,
+            'requested_check_out' => null,
+            'override_reason' => null
         ]);
         
         return redirect()->back()->with('success', 'Override request declined.');
+    }
+
+    public function bulkApprove(Request $request)
+    {
+        if (!Auth::user()->can('override')) {
+            return redirect()->route('home')->with('error', 'You cannot access the page.');
+        }
+
+        $request->validate([
+            'request_ids' => 'required|array',
+            'request_ids.*' => 'exists:attendances,id'
+        ]);
+
+        $attendances = Attendance::whereIn('id', $request->request_ids)
+            ->where('override_status', 'pending')
+            ->get();
+
+        foreach ($attendances as $attendance) {
+            $attendance->update([
+                'status' => $attendance->requested_status,
+                'check_in' => $attendance->requested_check_in ?? $attendance->check_in,
+                'check_out' => $attendance->requested_check_out ?? $attendance->check_out,
+                'override_status' => 'override',
+                'requested_status' => null,
+                'requested_check_in' => null,
+                'requested_check_out' => null,
+                'override_reason' => null
+            ]);
+        }
+
+        return redirect()->back()->with('success', count($attendances) . ' requests approved successfully.');
+    }
+
+    public function bulkReject(Request $request)
+    {
+        if (!Auth::user()->can('override')) {
+            return redirect()->route('home')->with('error', 'You cannot access the page.');
+        }
+
+        $request->validate([
+            'request_ids' => 'required|array',
+            'request_ids.*' => 'exists:attendances,id'
+        ]);
+
+        $attendances = Attendance::whereIn('id', $request->request_ids)
+            ->where('override_status', 'pending')
+            ->get();
+
+        foreach ($attendances as $attendance) {
+            if ($attendance->status === 'pending') {
+                $attendance->delete();
+            } else {
+                $attendance->update([
+                    'override_status' => 'rejected',
+                    'requested_status' => null,
+                    'requested_check_in' => null,
+                    'requested_check_out' => null,
+                    'override_reason' => null
+                ]);
+            }
+        }
+
+        return redirect()->back()->with('success', count($attendances) . ' requests rejected successfully.');
     }
 }

@@ -7,10 +7,13 @@
     .page-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; }
     .page-title { font-size: 32px; font-weight: 700; color: #0d3b66; margin: 0 0 8px 0; }
     .page-subtitle { color: #6b7280; margin: 0; font-size: 15px; }
-    .btn-create { padding: 12px 24px; background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3); text-decoration: none; }
+    
+    .btn-create { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3); text-decoration: none; }
     .btn-create:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(13, 59, 102, 0.4); color: white; }
-    .btn-approvals { padding: 12px 24px; background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3); text-decoration: none; margin-right: 12px; }
+    
+    .btn-approvals { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: linear-gradient(135deg, #0d3b66 0%, #1a5490 100%); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(13, 59, 102, 0.3); text-decoration: none; margin-right: 12px; }
     .btn-approvals:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(13, 59, 102, 0.4); color: white; }
+    
     .header-actions { display: flex; align-items: center; }
     .filter-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); margin-bottom: 32px; border: 1px solid rgba(0, 0, 0, 0.05); }
     
@@ -39,7 +42,7 @@
     .status-late { background: #fef3c7; color: #92400e; }
     .status-leave { background: #e0f2fe; color: #075985; }
     .status-sick { background: #f3e8ff; color: #6b21a8; }
-    .status-pending { background: #fef3c7; color: #d97706; } /* Added for normal users seeing pending */
+    .status-pending { background: #fef3c7; color: #d97706; }
     
     .tag-pending { background: #fef3c7; color: #d97706; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
     .tag-approved { background: #dcfce7; color: #059669; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -61,13 +64,46 @@
     .modal-content-custom { border: 1px solid rgba(0, 0, 0, 0.08); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15); }
     .modal-header-custom { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
     
-    @media (max-width: 768px) { .page-header { flex-direction: column; align-items: flex-start; gap: 16px; } .header-actions { width: 100%; flex-direction: column; gap: 10px; } .btn-approvals, .btn-create { width: 100%; margin: 0; text-align: center; justify-content: center; } }
+    @media (max-width: 768px) {
+        .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+        
+        .header-actions {
+            width: 100%;
+            display: flex;
+            flex-direction: row; 
+            gap: 10px;
+        }
+        
+        .btn-approvals, .btn-create {
+            flex: 1; 
+            margin: 0;
+            padding: 10px 8px; 
+            font-size: 13px; 
+            white-space: nowrap; 
+            justify-content: center;
+        }
+
+        .filter-form {
+            grid-template-columns: repeat(2, 1fr); /* Forces 2 columns for inputs */
+            gap: 12px;
+        }
+
+        .filter-form .btn-filter {
+            grid-column: 1 / -1; /* Forces the filter button to stretch fully across */
+        }
+        
+        /* Adjust padding for small inputs */
+        .filter-input {
+            padding: 10px;
+            font-size: 13px;
+        }
+    }
 </style>
 
 <div class="page-wrapper">
     <div class="page-header mb-5">
         <div class="header-content">
-            <h1 class="page-title">{{ auth()->user()->can('override') ? 'Attendance Records' : 'My Attendance' }}</h1>
+            <h1 class="page-title">{{ auth()->user()->can('override') ? 'Attendance Records' : 'Attendance' }}</h1>
             <p class="page-subtitle">Track and manage attendance data</p>
         </div>
         <div class="header-actions">

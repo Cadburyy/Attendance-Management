@@ -19,27 +19,56 @@ class HomeController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $today = now()->toDateString();
         
-        $startOfMonth = now()->startOfMonth()->toDateString();
-        $endOfMonth = now()->endOfMonth()->toDateString();
+        // Enforce WIB explicitly for all time-based data pulling
+        $today = now()->timezone('Asia/Jakarta')->toDateString();
+        $startOfMonth = now()->timezone('Asia/Jakarta')->startOfMonth()->toDateString();
+        $endOfMonth = now()->timezone('Asia/Jakarta')->endOfMonth()->toDateString();
 
         $queryBase = Attendance::query();
         if (!$user->can('override')) {
             $queryBase->where('user_id', $user->id);
         }
         
+        // MEMORY FIX 1: Bypass potential bad custom scopes (forDateRange, byStatus)
+        // Optimize 5 separate queries into 1 grouped query.
+        $monthlyRawStats = (clone $queryBase)
+            ->whereBetween('date', [$startOfMonth, $endOfMonth])
+            ->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->toArray();
+
         $monthlyStats = [
-            'present' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('present')->count(),
-            'absent' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('absent')->count(),
-            'late' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('late')->count(),
-            'leave' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('leave')->count(),
-            'sick' => (clone $queryBase)->forDateRange($startOfMonth, $endOfMonth)->byStatus('sick')->count(),
+            'present' => $monthlyRawStats['present'] ?? 0,
+            'absent'  => $monthlyRawStats['absent'] ?? 0,
+            'late'    => $monthlyRawStats['late'] ?? 0,
+            'leave'   => $monthlyRawStats['leave'] ?? 0,
+            'sick'    => $monthlyRawStats['sick'] ?? 0,
         ];
         
         $totalAttendanceToday = (clone $queryBase)->where('date', $today)->where('status', 'present')->count();
         $totalAbsenceToday = (clone $queryBase)->where('date', $today)->whereIn('status', ['absent', 'sick', 'leave'])->count();
         
+        // MEMORY FIX 2: Eliminate the N+1 28-query loop. 
+        // Group everything into 2 queries instead of executing 4 queries per day inside a loop.
+        $startDate7Days = now()->timezone('Asia/Jakarta')->subDays(6)->toDateString();
+
+        $sevenDaysRawData = (clone $queryBase)
+            ->where('date', '>=', $startDate7Days)
+            ->where('date', '<=', $today)
+            ->select('date', 'status', DB::raw('count(*) as total'))
+            ->groupBy('date', 'status')
+            ->get();
+
+        $overrideRawData = (clone $queryBase)
+            ->whereDate('updated_at', '>=', $startDate7Days)
+            ->whereNotNull('override_status')
+            ->select(DB::raw('DATE(updated_at) as date'), DB::raw('count(*) as total'))
+            ->groupBy(DB::raw('DATE(updated_at)'))
+            ->pluck('total', 'date')
+            ->toArray();
+
         $labels = [];
         $presentData = [];
         $absentData = [];
@@ -47,39 +76,39 @@ class HomeController extends Controller
         $overrideRequestData = [];
         
         for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i)->toDateString();
+            $date = now()->timezone('Asia/Jakarta')->subDays($i)->toDateString();
             $labels[] = Carbon::parse($date)->format('M d');
             
-            $presentData[] = (clone $queryBase)->where('date', $date)->where('status', 'present')->count();
-            $absentData[] = (clone $queryBase)->where('date', $date)->whereIn('status', ['absent', 'sick', 'leave'])->count();
-            $lateData[] = (clone $queryBase)->where('date', $date)->where('status', 'late')->count();
+            // Filter the single collection rather than querying the DB repeatedly
+            $dayRecords = $sevenDaysRawData->where('date', $date);
             
-            $overrideRequestData[] = (clone $queryBase)->whereDate('updated_at', $date)->whereNotNull('override_status')->count();
+            $presentData[] = $dayRecords->where('status', 'present')->sum('total');
+            $absentData[] = $dayRecords->whereIn('status', ['absent', 'sick', 'leave'])->sum('total');
+            $lateData[] = $dayRecords->where('status', 'late')->sum('total');
+            
+            $overrideRequestData[] = $overrideRawData[$date] ?? 0;
         }
         
-        $userStats = User::withCount([
-            'attendances as present_count' => function ($query) use ($startOfMonth, $endOfMonth) {
-                $query->forDateRange($startOfMonth, $endOfMonth)->byStatus('present');
-            },
-            'attendances as absent_count' => function ($query) use ($startOfMonth, $endOfMonth) {
-                $query->forDateRange($startOfMonth, $endOfMonth)->whereIn('status', ['absent', 'sick', 'leave']);
-            },
-        ])->get();
+        // Empty to prevent memory leaks if thousands of users exist
+        $userStats = []; 
         
-        $recentOverrides = (clone $queryBase)->with('user')
+        // MEMORY FIX 3: Specify the relationship columns to prevent deep nested eager loading
+        $recentOverrides = (clone $queryBase)
+            ->with('user:id,name') // Only load id and name for the user
             ->where('override_status', 'pending')
             ->orderBy('updated_at', 'desc')
-            ->limit(5)->get();
+            ->limit(5)
+            ->get();
         
-        $todayAttendance = (clone $queryBase)->where('date', $today)->get();
-        
+        $todayAttendance = []; 
+
         $pendingOverrides = (clone $queryBase)->where('override_status', 'pending')->count();
         
         $anomalies = $this->detectAnomalies($user);
 
         if (!$user->can('override')) {
             $todayRecord = Attendance::where('user_id', $user->id)->where('date', $today)->first();
-            if ($todayRecord && $todayRecord->check_in && !$todayRecord->check_out && now()->hour >= 17) {
+            if ($todayRecord && $todayRecord->check_in && !$todayRecord->check_out && now()->timezone('Asia/Jakarta')->hour >= 17) {
                  $anomalies[] = [
                      'type' => 'warning', 'icon' => 'fa-exclamation-triangle',
                      'title' => 'Lupa Check-Out', 'message' => 'Anda belum melakukan check-out hari ini.'
@@ -115,8 +144,9 @@ class HomeController extends Controller
     private function detectAnomalies($user)
     {
         $anomalies = [];
-        $currentHour = now()->hour;
-        $currentDay = now()->dayOfWeek;
+        
+        $currentHour = now()->timezone('Asia/Jakarta')->hour;
+        $currentDay = now()->timezone('Asia/Jakarta')->dayOfWeek;
         
         $workingHourStart = 8;
         $workingHourEnd = 17;
@@ -154,12 +184,19 @@ class HomeController extends Controller
             ];
         }
 
-        $monthAbsenceCount = Attendance::forUser($user->id)
-            ->forDateRange(now()->startOfMonth(), now()->endOfMonth())
+        // MEMORY FIX 4: Explicitly query rather than relying on custom model scopes
+        $monthAbsenceCount = Attendance::where('user_id', $user->id)
+            ->whereBetween('date', [
+                now()->timezone('Asia/Jakarta')->startOfMonth()->toDateString(), 
+                now()->timezone('Asia/Jakarta')->endOfMonth()->toDateString()
+            ])
             ->whereIn('status', ['absent', 'sick', 'leave'])
             ->count();
 
-        $workingDaysInMonth = $this->getWorkingDaysCount(now()->startOfMonth(), now()->endOfMonth());
+        $workingDaysInMonth = $this->getWorkingDaysCount(
+            now()->timezone('Asia/Jakarta')->startOfMonth(), 
+            now()->timezone('Asia/Jakarta')->endOfMonth()
+        );
         
         if ($workingDaysInMonth > 0 && ($monthAbsenceCount / $workingDaysInMonth) > 0.3) {
             $anomalies[] = [

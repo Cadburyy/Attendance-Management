@@ -1,11 +1,84 @@
 @extends('layouts.app')
 
 @section('content')
+
+<style>
+    .dashboard-container { animation: fadeIn 0.6s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .dashboard-header { padding: 10px 0; }
+    .alerts-custom { background: white; border-left: 4px solid; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); animation: slideIn 0.4s ease-out; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+    .stat-card { background: white; border-radius: 16px; padding: 25px; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(0, 0, 0, 0.05); }
+    .stat-card:hover { transform: translateY(-12px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12); }
+    .stat-icon { width: 70px; height: 70px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: white; font-size: 32px; flex-shrink: 0; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); }
+    .stat-content { flex: 1; }
+    .stat-label { color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0; }
+    .stat-value { color: #0d3b66; font-size: 32px; font-weight: 700; margin: 0; }
+    .chart-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(0, 0, 0, 0.05); }
+    .chart-card:hover { box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12); }
+    .chart-header { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 24px 28px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
+    .chart-header h5 { color: #0d3b66; font-weight: 700; font-size: 16px; }
+    
+    .chart-body { 
+        padding: 28px; 
+        position: relative; 
+        height: 350px; 
+    }
+    
+    .absence-list { 
+        padding: 28px; 
+        height: 350px;
+        overflow-y: auto;
+    }
+
+    /* Mobile responsiveness for the list card */
+    @media (max-width: 991.98px) {
+        .absence-list {
+            height: auto;
+            max-height: 350px;
+        }
+    }
+
+    .absence-list::-webkit-scrollbar {
+        width: 8px;
+    }
+    .absence-list::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .absence-list::-webkit-scrollbar-thumb {
+        background-color: rgba(13, 59, 102, 0.15);
+        border-radius: 10px;
+        border: 2px solid white;
+    }
+    .absence-list::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(13, 59, 102, 0.3);
+    }
+
+    .absence-item { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid rgba(0, 0, 0, 0.06); transition: all 0.3s ease; }
+    .absence-item:first-child { padding-top: 0; }
+    .absence-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .absence-item:hover { background: rgba(13, 59, 102, 0.02); padding-left: 10px; border-radius: 8px; }
+    
+    .absence-name { font-weight: 600; color: #1f2937; margin: 0 0 6px 0; font-size: 15px; }
+    .absence-details { color: #9ca3af; font-size: 13px; margin: 0; }
+    .badge-status { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+    
+    .empty-state { text-align: center; padding: 40px 20px; color: #9ca3af; height: 100%; display: flex; flex-direction: column; justify-content: center; }
+    .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 12px; display: block; }
+    .empty-state p { margin: 0; font-size: 15px; }
+</style>
+
 <div class="dashboard-container">
-    <div class="dashboard-header mb-5">
+    <div class="dashboard-header mb-5 d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-            <h1 class="display-5 fw-bold mb-2" style="color: #0d3b66;">Welcome back, {{ Auth::user()->name }}! 👋</h1>
-            <p class="text-muted fs-5">{{ now()->format('l, F d, Y') }}</p>
+            <h1 class="display-5 fw-bold mb-0" style="color: #0d3b66;">Halo, {{ Auth::user()->name }}! 👋</h1>
+        </div>
+        
+        <div class="text-end">
+            <h3 class="fw-bold mb-0" style="color: #0d3b66;">
+                {{ now()->timezone('Asia/Jakarta')->format('l, F d, Y') }} 
+                <span class="ms-2 opacity-75">| {{ now()->timezone('Asia/Jakarta')->format('h:i A') }} WIB</span>
+            </h3>
         </div>
     </div>
 
@@ -139,35 +212,6 @@
         </div>
     </div>
 </div>
-
-<style>
-    .dashboard-container { animation: fadeIn 0.6s ease-in-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .dashboard-header { padding: 10px 0; }
-    .alerts-custom { background: white; border-left: 4px solid; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); animation: slideIn 0.4s ease-out; }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
-    .stat-card { background: white; border-radius: 16px; padding: 25px; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(0, 0, 0, 0.05); }
-    .stat-card:hover { transform: translateY(-12px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12); }
-    .stat-icon { width: 70px; height: 70px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: white; font-size: 32px; flex-shrink: 0; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); }
-    .stat-content { flex: 1; }
-    .stat-label { color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0; }
-    .stat-value { color: #0d3b66; font-size: 32px; font-weight: 700; margin: 0; }
-    .chart-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(0, 0, 0, 0.05); }
-    .chart-card:hover { box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12); }
-    .chart-header { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 24px 28px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
-    .chart-header h5 { color: #0d3b66; font-weight: 700; font-size: 16px; }
-    .chart-body { padding: 28px; position: relative; height: 350px; }
-    .absence-list { padding: 28px; }
-    .absence-item { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid rgba(0, 0, 0, 0.06); transition: all 0.3s ease; }
-    .absence-item:last-child { border-bottom: none; }
-    .absence-item:hover { background: rgba(13, 59, 102, 0.02); padding-left: 10px; }
-    .absence-name { font-weight: 600; color: #1f2937; margin: 0 0 6px 0; font-size: 15px; }
-    .absence-details { color: #9ca3af; font-size: 13px; margin: 0; }
-    .badge-status { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
-    .empty-state { text-align: center; padding: 40px 20px; color: #9ca3af; }
-    .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 12px; display: block; }
-    .empty-state p { margin: 0; font-size: 15px; }
-</style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script>

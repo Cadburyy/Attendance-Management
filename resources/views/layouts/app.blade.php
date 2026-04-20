@@ -1,12 +1,24 @@
 <!doctype html>
 @php
-use App\Models\Setting;
-$settings = cache()->remember('app_settings', 60, fn() => Setting::pluck('value', 'key')->toArray());
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+
+$settings = Cache::remember('app_settings', 60, function() {
+    try {
+        return DB::table('settings')->pluck('value', 'key')->toArray();
+    } catch (\Exception $e) {
+        return []; 
+    }
+});
 
 $brand = $settings['brand_name'] ?? 'Company';
 $font = $settings['font'] ?? 'Nunito';
-$logoUrl = !empty($settings['logo_path']) ? asset('storage/'.str_replace('\\', '/', $settings['logo_path'])) : asset('images/logo.png');
-$faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('\\', '/', $settings['favicon_path'])) : asset('favicon.ico');
+
+$logoPath = isset($settings['logo_path']) && is_string($settings['logo_path']) ? $settings['logo_path'] : '';
+$faviconPath = isset($settings['favicon_path']) && is_string($settings['favicon_path']) ? $settings['favicon_path'] : '';
+
+$logoUrl = !empty($logoPath) ? asset('storage/'.str_replace('\\', '/', $logoPath)) : asset('images/logo.png');
+$faviconUrl = !empty($faviconPath) ? asset('storage/'.str_replace('\\', '/', $faviconPath)) : asset('favicon.ico');
 @endphp
 
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -31,6 +43,11 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: '{{ $font }}', sans-serif; background: #f5f7fb; color: #2d3748; min-height: 100vh; overflow-x: hidden; }
+
+        /* Global Mobile Navbar (Hidden on Desktop) */
+        .mobile-navbar {
+            display: none;
+        }
 
         .sidebar {
             position: fixed; left: 0; top: 0; height: 100vh; width: var(--sb-width);
@@ -121,10 +138,7 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
         
-        .nav-backdrop.active { 
-            opacity: 1; 
-            padding-left: var(--sb-width); 
-        }
+        .nav-backdrop.active { opacity: 1; padding-left: var(--sb-width); }
 
         .center-brand-display { text-align: center; transform: translateY(20px); transition: 0.5s ease; opacity: 0; }
         .nav-backdrop.active .center-brand-display { transform: translateY(0); opacity: 1; }
@@ -133,68 +147,83 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
         .backdrop-logo img { width: 100%; height: 100%; object-fit: contain; }
         .backdrop-tagline { color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 10px rgba(0,0,0,0.3); letter-spacing: 1px; }
 
-        .mobile-toggle-btn { 
-            display: none; 
-            position: fixed; 
-            top: 20px; 
-            right: 20px; 
-            z-index: 1100; 
-            background: #1E3A8A; 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            width: 44px; 
-            height: 44px; 
-            align-items: center; 
-            justify-content: center; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
-            transition: background 0.3s;
-        }
-
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         @media (min-width: 769px) {
             .sidebar.collapsed .user-menu-toggle span,
             .sidebar.collapsed .user-menu-toggle i:last-child { 
-                opacity: 0; 
-                pointer-events: none;
+                opacity: 0; pointer-events: none;
             }
         }
 
+        /* Mobile specific styling */
         @media (max-width: 768px) {
-            .mobile-toggle-btn { display: flex; }
-            .sidebar { 
-                transform: translateX(-100%); 
-                width: 100% !important; 
-                z-index: 1090; 
+            /* Show the top navbar */
+            .mobile-navbar {
+                display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 65px;
+                background: var(--sb-bg); z-index: 1100; align-items: center;
+                justify-content: space-between; padding: 0 16px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.15);
             }
-            .sidebar.show { transform: translateX(0); }
-            main { margin-left: 0 !important; padding: 80px 16px 24px 16px; }
+            .mobile-navbar-brand {
+                display: flex; align-items: center; gap: 12px; color: white;
+                font-weight: 700; font-size: 18px; text-decoration: none;
+            }
+            .mobile-navbar-brand img {
+                width: 36px; height: 36px; border-radius: 8px; background: white;
+                padding: 4px; object-fit: contain;
+            }
+            .mobile-toggle-btn {
+                background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 8px; width: 40px; height: 40px; display: flex;
+                align-items: center; justify-content: center; transition: background 0.3s;
+                cursor: pointer;
+            }
+
+            /* Adjust Sidebar for Mobile */
+            .sidebar { 
+                transform: translateY(-120%); 
+                width: 100% !important; 
+                top: 65px; /* Sits exactly below the mobile navbar */
+                height: calc(100vh - 65px);
+                z-index: 1090; 
+                opacity: 0;
+            }
+            .sidebar.show { 
+                transform: translateY(0); 
+                opacity: 1;
+            }
             
+            /* Hide the original sidebar header since we now have the mobile navbar */
+            .sidebar-header { display: none; }
+
             .sidebar .sidebar-brand,
             .sidebar .nav-link-text,
-            .sidebar .user-menu-toggle span { 
-                opacity: 1 !important; 
-                pointer-events: auto !important;
-            }
+            .sidebar .user-menu-toggle span { opacity: 1 !important; pointer-events: auto !important; }
 
-            .sidebar-header {
-                justify-content: flex-start;
-                padding: 16px 20px;
-            }
-
-            .nav-link {
-                padding: 18px 30px;
-                font-size: 16px;
-            }
-
+            .nav-link { padding: 18px 30px; font-size: 16px; }
             .nav-backdrop { display: none; }
+
+            /* Add padding to main content to clear the new mobile navbar */
+            main { margin-left: 0 !important; padding: 85px 16px 24px 16px; }
         }
     </style>
 </head>
 
 <body>
     <div id="app">
+        
+        <!-- NEW Global Mobile Navbar -->
+        <div class="mobile-navbar">
+            <a href="{{ route('home') }}" class="mobile-navbar-brand">
+                <img src="{{ $logoUrl }}" alt="Logo">
+                <span>{{ $brand }}</span>
+            </a>
+            <button class="mobile-toggle-btn" id="mobileToggleBtn">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+
         <div class="nav-backdrop" id="navBackdrop">
             <div class="center-brand-display">
                 <div class="backdrop-logo">
@@ -203,8 +232,6 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
                 <div class="backdrop-tagline">Attendance Made Easier</div>
             </div>
         </div>
-
-        <button class="mobile-toggle-btn" id="mobileToggleBtn"><i class="fas fa-bars"></i></button>
 
         <aside class="sidebar collapsed" id="sidebar">
             <div class="sidebar-header">
@@ -221,7 +248,6 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
                         </a>
                     </li>
                 @else
-                    {{-- Notice: The Absensi route has been removed because it is now merged --}}
                     @foreach([
                         ['route' => 'home', 'icon' => 'home', 'label' => 'Home', 'permission' => null],
                         ['route' => 'attendances.index', 'icon' => 'clipboard-user', 'label' => 'Attendance', 'permission' => 'attendance'],
@@ -229,7 +255,10 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
                         ['route' => 'roles.index', 'icon' => 'shield-alt', 'label' => 'Roles', 'permission' => 'role'],
                         ['route' => 'settings.index', 'icon' => 'cog', 'label' => 'Settings', 'permission' => 'setting'],
                     ] as $item)
-                        @if(!$item['permission'] || auth()->user()->canAny((array)$item['permission']))
+                        @php
+                            $hasPermission = !$item['permission'] || (auth()->check() && auth()->user()->canAny((array)$item['permission']));
+                        @endphp
+                        @if($hasPermission)
                             <li class="nav-item">
                                 <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                                     <i class="fas fa-{{ $item['icon'] }}"></i>
@@ -309,9 +338,11 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
                 if (sidebar.classList.contains('show')) {
                     icon.classList.replace('fa-bars', 'fa-times');
                     mobile.style.background = '#ef4444';
+                    mobile.style.borderColor = '#ef4444';
                 } else {
                     icon.classList.replace('fa-times', 'fa-bars');
-                    mobile.style.background = '#1E3A8A';
+                    mobile.style.background = 'rgba(255,255,255,0.1)';
+                    mobile.style.borderColor = 'rgba(255,255,255,0.2)';
                 }
             };
 
@@ -320,7 +351,8 @@ $faviconUrl = !empty($settings['favicon_path']) ? asset('storage/'.str_replace('
                 if (window.innerWidth <= 768 && !sidebar.contains(e.target) && !mobile.contains(e.target)) {
                     sidebar.classList.remove('show');
                     mobile.querySelector('i').classList.replace('fa-times', 'fa-bars');
-                    mobile.style.background = '#1E3A8A';
+                    mobile.style.background = 'rgba(255,255,255,0.1)';
+                    mobile.style.borderColor = 'rgba(255,255,255,0.2)';
                 }
             };
         });

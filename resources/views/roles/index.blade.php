@@ -271,9 +271,23 @@
 
     @media (max-width: 768px) {
         .page-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 16px;
+            flex-direction: row;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-title {
+            font-size: 24px;
+        }
+
+        .page-subtitle {
+            font-size: 13px;
+        }
+
+        .btn-create {
+            padding: 10px 16px;
+            font-size: 14px;
+            white-space: nowrap;
         }
 
         .roles-grid {

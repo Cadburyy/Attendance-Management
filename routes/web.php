@@ -21,6 +21,8 @@ Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/attendances/approvals', [AttendanceController::class, 'approvals'])->name('attendances.approvals');
+    Route::post('/attendances/bulk-approve', [AttendanceController::class, 'bulkApprove'])->name('attendances.bulkApprove');
+    Route::post('/attendances/bulk-reject', [AttendanceController::class, 'bulkReject'])->name('attendances.bulkReject');
     Route::post('/attendances/{attendance}/request-override', [AttendanceController::class, 'requestOverride'])->name('attendances.requestOverride');
     Route::post('/attendances/{attendance}/approve', [AttendanceController::class, 'approveOverride'])->name('attendances.approve');
     Route::post('/attendances/{attendance}/reject', [AttendanceController::class, 'rejectOverride'])->name('attendances.reject');
