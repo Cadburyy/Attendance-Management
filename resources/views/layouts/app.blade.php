@@ -251,9 +251,9 @@ $faviconUrl = !empty($faviconPath) ? asset('storage/'.str_replace('\\', '/', $fa
                     @foreach([
                         ['route' => 'home', 'icon' => 'home', 'label' => 'Home', 'permission' => null],
                         ['route' => 'attendances.index', 'icon' => 'clipboard-user', 'label' => 'Attendance', 'permission' => 'attendance'],
-                        ['route' => 'users.index', 'icon' => 'users', 'label' => 'Pekerja', 'permission' => 'user'],
-                        ['route' => 'roles.index', 'icon' => 'shield-alt', 'label' => 'Roles', 'permission' => 'role'],
-                        ['route' => 'settings.index', 'icon' => 'cog', 'label' => 'Settings', 'permission' => 'setting'],
+                        ['route' => 'users.index', 'icon' => 'users', 'label' => 'Employee', 'permission' => 'user'],
+                        ['route' => 'roles.index', 'icon' => 'shield-alt', 'label' => 'Role', 'permission' => 'role'],
+                        ['route' => 'settings.index', 'icon' => 'cog', 'label' => 'Setting', 'permission' => 'setting'],
                     ] as $item)
                         @php
                             $hasPermission = !$item['permission'] || (auth()->check() && auth()->user()->canAny((array)$item['permission']));

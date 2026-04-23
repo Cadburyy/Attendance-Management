@@ -14,13 +14,29 @@
     .form-label { font-size: 14px; font-weight: 700; color: #1f2937; text-transform: uppercase; letter-spacing: 0.3px; }
     .form-input { width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 15px; font-family: inherit; transition: all 0.3s ease; background: #f9fafb; }
     .form-input:focus { outline: none; border-color: #0d3b66; background: white; box-shadow: 0 0 0 4px rgba(13, 59, 102, 0.1); }
+    .form-input.is-invalid { border-color: #ef4444; background: #fef2f2; }
     .form-actions { display: flex; gap: 16px; justify-content: flex-end; margin-top: 10px; }
     .btn { padding: 10px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-size: 15px; transition: all 0.2s ease; }
     .btn-submit { background: #0d3b66; color: white; }
     .btn-submit:hover { background: #0a2d52; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13, 59, 102, 0.2); color: white; }
     .btn-cancel { background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
     .btn-cancel:hover { background: #e5e7eb; color: #374151; }
+    .password-hint { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.4; }
     
+    .custom-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 59, 102, 0.6); backdrop-filter: blur(4px); z-index: 9999; display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+    .custom-overlay.active { opacity: 1; visibility: visible; }
+    .custom-modal { background: white; border-radius: 24px; width: 90%; max-width: 420px; padding: 32px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); transform: translateY(30px) scale(0.95); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    .custom-overlay.active .custom-modal { transform: translateY(0) scale(1); }
+    .custom-modal-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 24px; }
+    .custom-modal-header .icon-circle { width: 72px; height: 72px; border-radius: 50%; background: #fef2f2; color: #ef4444; display: flex; justify-content: center; align-items: center; font-size: 32px; margin-bottom: 16px; border: 4px solid #fee2e2; }
+    .custom-modal-header h3 { margin: 0; color: #111827; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .custom-modal-body p { color: #4b5563; margin: 0 0 16px 0; text-align: center; font-size: 15px; }
+    .custom-modal-body ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .custom-modal-body li { background: #f9fafb; color: #b91c1c; padding: 12px 16px; border-radius: 10px; font-size: 14px; border-left: 4px solid #ef4444; display: flex; align-items: flex-start; gap: 12px; line-height: 1.4; }
+    .custom-modal-body li::before { content: "\f06a"; font-family: "Font Awesome 5 Free"; font-weight: 900; margin-top: 2px; }
+    .custom-modal-footer { margin-top: 28px; display: flex; justify-content: center; }
+    .custom-modal-footer .btn { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; }
+
     @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } .form-actions { flex-direction: column; } .btn { width: 100%; } }
 </style>
 
@@ -31,37 +47,38 @@
             <p>Update employee details and AI face scan data.</p>
         </div>
 
-        <form method="POST" action="{{ route('users.update', $user->id) }}" enctype="multipart/form-data">
+        <form id="editForm" method="POST" action="{{ route('users.update', $user->id) }}" enctype="multipart/form-data">
             @csrf
             @method('PUT')
 
             <div class="form-row">
                 <div class="form-group">
                     <label for="name" class="form-label">Name</label>
-                    <input type="text" name="name" id="name" class="form-input" value="{{ old('name', $user->name) }}" required>
+                    <input type="text" name="name" id="name" class="form-input {{ $errors->has('name') ? 'is-invalid' : '' }}" value="{{ old('name', $user->name) }}" required>
                 </div>
 
                 <div class="form-group">
                     <label for="email" class="form-label">Email</label>
-                    <input type="email" name="email" id="email" class="form-input" value="{{ old('email', $user->email) }}" required>
+                    <input type="email" name="email" id="email" class="form-input {{ $errors->has('email') ? 'is-invalid' : '' }}" value="{{ old('email', $user->email) }}" required>
                 </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
                     <label for="password" class="form-label">Password</label>
-                    <input type="password" name="password" id="password" class="form-input" minlength="6" maxlength="18" placeholder="Leave blank to keep current">
+                    <input type="password" name="password" id="password" class="form-input {{ $errors->has('password') ? 'is-invalid' : '' }}" minlength="12" maxlength="64" placeholder="Leave blank to keep current">
+                    <span class="password-hint"><i class="fas fa-info-circle"></i> Min 12 chars, incl. uppercase, number, and symbol.</span>
                 </div>
 
                 <div class="form-group">
                     <label for="confirm-password" class="form-label">Confirm Password</label>
-                    <input type="password" name="confirm-password" id="confirm-password" class="form-input" minlength="6" maxlength="18">
+                    <input type="password" name="confirm-password" id="confirm-password" class="form-input {{ $errors->has('password') ? 'is-invalid' : '' }}" minlength="12" maxlength="64">
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="roles" class="form-label">Assign Role(s)</label>
-                <select name="roles[]" id="roles" class="form-input" multiple required>
+                <select name="roles[]" id="roles" class="form-input {{ $errors->has('roles') ? 'is-invalid' : '' }}" multiple required>
                     @foreach ($roles as $value => $label)
                         <option value="{{ $value }}" {{ in_array($value, old('roles', $user->roles->pluck('name')->toArray())) ? 'selected' : '' }}>
                             {{ $label }}
@@ -82,7 +99,7 @@
                     <img id="imagePreview" src="{{ $user->picture ? route('users.picture', $user->id) : '' }}" alt="Face Scan Preview" style="width: 200px; height: 200px; object-fit: cover; border-radius: 12px; border: 3px solid #0d3b66; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
                 </div>
 
-                <input type="file" name="picture" id="pictureInput" class="form-input" accept="image/*" style="background: white; max-width: 350px; margin: 0 auto;">
+                <input type="file" name="picture" id="pictureInput" class="form-input {{ $errors->has('picture') ? 'is-invalid' : '' }}" accept="image/*" style="background: white; max-width: 350px; margin: 0 auto;">
                 <small style="color: #64748b; margin-top: 12px; display: block;">
                     Leave blank to keep the current scan. Uploading a new image will overwrite the existing DEK key securely.
                 </small>
@@ -90,7 +107,7 @@
 
             <div class="form-actions">
                 <a href="{{ route('users.index') }}" class="btn btn-cancel">Cancel</a>
-                <button type="submit" class="btn btn-submit">
+                <button type="submit" id="submitBtn" class="btn btn-submit">
                     <i class="fas fa-check"></i> Update Employee
                 </button>
             </div>
@@ -98,35 +115,25 @@
     </div>
 </div>
 
-<div class="modal fade" id="errorModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content" style="border-radius: 16px;">
-            <div class="modal-header">
-                <h5 class="modal-title" style="color: #ef4444;"><i class="fas fa-exclamation-circle"></i> Validation Errors</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <ul style="color: #4b5563; padding-left: 20px;">
-                    @foreach ($errors->all() as $error)
-                        <li style="margin-bottom: 8px;">{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
+<div id="customErrorOverlay" class="custom-overlay {{ $errors->any() ? 'active' : '' }}">
+    <div class="custom-modal">
+        <div class="custom-modal-header">
+            <div class="icon-circle"><i class="fas fa-shield-alt"></i></div>
+            <h3>Requirements Not Met</h3>
+        </div>
+        <div class="custom-modal-body">
+            <p>Please review and correct the following highlighted fields to proceed:</p>
+            <ul>
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+        <div class="custom-modal-footer">
+            <button type="button" class="btn btn-submit" id="closeCustomModal">Got it, let me fix it</button>
         </div>
     </div>
 </div>
-
-@if ($errors->any())
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
-        errorModal.show();
-    });
-</script>
-@endif
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -135,15 +142,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const imagePreviewContainer = document.getElementById('imagePreviewContainer');
     const previewLabel = document.getElementById('previewLabel');
 
-    pictureInput.addEventListener('change', function(event) {
-        const [file] = event.target.files;
-        if (file) {
-            imagePreview.src = URL.createObjectURL(file);
-            imagePreviewContainer.style.display = 'block';
-            previewLabel.innerText = "New Face Scan Preview";
-            previewLabel.style.color = "#0d3b66";
-        }
-    });
+    if (pictureInput) {
+        pictureInput.addEventListener('change', function(event) {
+            const [file] = event.target.files;
+            if (file) {
+                imagePreview.src = URL.createObjectURL(file);
+                imagePreviewContainer.style.display = 'block';
+                if (previewLabel) {
+                    previewLabel.innerText = "New Face Scan Preview";
+                    previewLabel.style.color = "#0d3b66";
+                }
+            }
+        });
+    }
+
+    const closeBtn = document.getElementById('closeCustomModal');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            document.getElementById('customErrorOverlay').classList.remove('active');
+        });
+    }
 });
 </script>
 @endsection

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('salt')->nullable();
             $table->string('role')->nullable();
             $table->longText('picture')->nullable();
+            $table->string('picture_hash')->nullable();
             $table->text('encrypted_dek')->nullable();
             $table->string('picture_iv')->nullable();
             $table->string('dek_iv')->nullable();
