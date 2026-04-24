@@ -7,6 +7,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\AbsenceController;
 
 Route::get('/', function () {
     if (Auth::check()) {
@@ -14,6 +15,12 @@ Route::get('/', function () {
     }
     return redirect()->route('login');
 });
+
+Route::get('/absence', [AbsenceController::class, 'index'])->name('absence');
+Route::post('/absence/analyze', [AbsenceController::class, 'proxyAnalyze'])->name('absence.analyze');
+Route::get('/absence/all-users', [AbsenceController::class, 'getAllUsers'])->name('absence.all-users');
+Route::post('/absence/record', [AbsenceController::class, 'record'])->name('absence.record');
+Route::get('/absence/recent', [AbsenceController::class, 'getRecent'])->name('absence.recent');
 
 Auth::routes();
 
@@ -40,4 +47,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/users/{id}/decrypt', [UserController::class, 'decryptImage'])->name('users.decrypt');
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
+
+    // AI Absence Settings
+    Route::get('/ai-absence', [AbsenceController::class, 'settings'])->name('ai-absence.settings');
+    Route::put('/ai-absence', [AbsenceController::class, 'updateSettings'])->name('ai-absence.update');
 });

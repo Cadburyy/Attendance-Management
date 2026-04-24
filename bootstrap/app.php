@@ -19,4 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
+    })
+    ->withSchedule(function ($schedule) {
+        $schedule->command('attendance:cleanup')->dailyAt('00:01');
     })->create();

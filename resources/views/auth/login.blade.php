@@ -77,6 +77,10 @@
         <div class="row justify-content-center">
             <div class="col-lg-10 col-xl-8">
                 <div class="card card-login shadow-lg">
+                    <a href="{{ route('absence') }}" class="btn-absence">
+                        <span class="absence-icon"></span>
+                        {{ __('AI System') }}
+                    </a>
 
 
                     <div class="row g-0 align-items-stretch">

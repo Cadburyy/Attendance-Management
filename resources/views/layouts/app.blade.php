@@ -250,6 +250,7 @@ $faviconUrl = !empty($faviconPath) ? asset('storage/'.str_replace('\\', '/', $fa
                 @else
                     @foreach([
                         ['route' => 'home', 'icon' => 'home', 'label' => 'Home', 'permission' => null],
+                        ['route' => 'ai-absence.settings', 'icon' => 'clock', 'label' => 'AI Absence', 'permission' => 'attendance'],
                         ['route' => 'attendances.index', 'icon' => 'clipboard-user', 'label' => 'Attendance', 'permission' => 'attendance'],
                         ['route' => 'users.index', 'icon' => 'users', 'label' => 'Pekerja', 'permission' => 'user'],
                         ['route' => 'roles.index', 'icon' => 'shield-alt', 'label' => 'Roles', 'permission' => 'role'],

@@ -20,7 +20,8 @@ class User extends Authenticatable
         'picture',
         'encrypted_dek',
         'picture_iv',
-        'dek_iv'
+        'dek_iv',
+        'face_embedding'
     ];
 
     protected $hidden = [
@@ -35,6 +36,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'face_embedding' => 'array',
         ];
     }
 

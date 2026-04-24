@@ -1,0 +1,10 @@
+ultralytics
+deepface
+opencv-python
+numpy
+mediapipe
+scikit-learn
+flask
+flask-cors
+pandas
+tf-keras

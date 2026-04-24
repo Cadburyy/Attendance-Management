@@ -47,7 +47,7 @@ class HomeController extends Controller
             'sick'    => $monthlyRawStats['sick'] ?? 0,
         ];
         
-        $totalAttendanceToday = (clone $queryBase)->where('date', $today)->where('status', 'present')->count();
+        $totalAttendanceToday = (clone $queryBase)->where('date', $today)->whereIn('status', ['present', 'late'])->count();
         $totalAbsenceToday = (clone $queryBase)->where('date', $today)->whereIn('status', ['absent', 'sick', 'leave'])->count();
         
         // MEMORY FIX 2: Eliminate the N+1 28-query loop. 
@@ -63,7 +63,7 @@ class HomeController extends Controller
 
         $overrideRawData = (clone $queryBase)
             ->whereDate('updated_at', '>=', $startDate7Days)
-            ->whereNotNull('override_status')
+            ->whereIn('override_status', ['pending', 'approved', 'rejected']) // Exclude 'machine'
             ->select(DB::raw('DATE(updated_at) as date'), DB::raw('count(*) as total'))
             ->groupBy(DB::raw('DATE(updated_at)'))
             ->pluck('total', 'date')
@@ -80,7 +80,10 @@ class HomeController extends Controller
             $labels[] = Carbon::parse($date)->format('M d');
             
             // Filter the single collection rather than querying the DB repeatedly
-            $dayRecords = $sevenDaysRawData->where('date', $date);
+            // Using a callback to ensure correct date comparison with Carbon objects
+            $dayRecords = $sevenDaysRawData->filter(function($record) use ($date) {
+                return $record->date->toDateString() == $date;
+            });
             
             $presentData[] = $dayRecords->where('status', 'present')->sum('total');
             $absentData[] = $dayRecords->whereIn('status', ['absent', 'sick', 'leave'])->sum('total');

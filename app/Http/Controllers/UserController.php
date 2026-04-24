@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Http;
 
 class UserController extends Controller
 {
@@ -34,6 +35,24 @@ class UserController extends Controller
         $authUser = Auth::user();
         if ($authUser->hasRole('User') && $targetUser->hasRole('AdminIT')) {
             return redirect()->route('users.index')->with('error', 'The Admin role is not permitted to modify users with the AdminIT role.');
+        }
+        return null;
+    }
+
+    private function getFaceEmbedding($imageFile)
+    {
+        try {
+            $base64Image = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($imageFile->getRealPath()));
+            
+            $response = Http::post('http://127.0.0.1:5000/represent', [
+                'image' => $base64Image
+            ]);
+
+            if ($response->successful() && isset($response->json()['embedding'])) {
+                return $response->json()['embedding'];
+            }
+        } catch (\Exception $e) {
+            \Log::error("Face Embedding Error: " . $e->getMessage());
         }
         return null;
     }
@@ -99,6 +118,9 @@ class UserController extends Controller
             $dekIv = random_bytes(16);
             $input['encrypted_dek'] = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
             $input['dek_iv'] = base64_encode($dekIv);
+
+            // AI Face Embedding
+            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
         }
 
         $input['role'] = $request->input('roles')[0];
@@ -193,6 +215,9 @@ class UserController extends Controller
             $dekIv = random_bytes(16);
             $input['encrypted_dek'] = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
             $input['dek_iv'] = base64_encode($dekIv);
+
+            // AI Face Embedding
+            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
         }
 
         $input['role'] = $request->input('roles')[0];

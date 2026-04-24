@@ -77,7 +77,7 @@
         <div class="text-end">
             <h3 class="fw-bold mb-0" style="color: #0d3b66;">
                 {{ now()->timezone('Asia/Jakarta')->format('l, F d, Y') }} 
-                <span class="ms-2 opacity-75">| {{ now()->timezone('Asia/Jakarta')->format('h:i A') }} WIB</span>
+                <span class="ms-2 opacity-75">| {{ now()->timezone('Asia/Jakarta')->format('h:i A') }}</span>
             </h3>
         </div>
     </div>
@@ -131,7 +131,7 @@
                 </div>
                 <div class="stat-content">
                     <p class="stat-label">Hadir Bulan Ini</p>
-                    <h2 class="stat-value">{{ $monthlyStats['present'] }}</h2>
+                    <h2 class="stat-value">{{ $monthlyStats['present'] + $monthlyStats['late'] }}</h2>
                 </div>
             </div>
         </div>
