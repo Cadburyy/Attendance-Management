@@ -51,4 +51,22 @@ With the database configured, you can set it up with the required tables and ini
 3.  Start the Laravel development server with `php artisan serve`.
 4.  Open a **new** terminal and, while in the same `am` directory, start the frontend development server with `npm run dev`.
 
+### 5. AI Server Setup (Face & Uniform Recognition)
+Sistem ini menggunakan server Python terpisah untuk pengolahan AI.
+
+1. Buka terminal baru dan masuk ke folder AI: `cd capstone-ai`
+2. Buat Virtual Environment (Opsional tapi disarankan):
+   * `python -m venv venv`
+   * `venv\Scripts\activate` (Windows)
+3. Instal dependencies AI:
+   * `pip install -r requirements.txt`
+   * (Jika file requirements belum ada, instal manual: `pip install flask flask-cors deepface ultralytics opencv-python`)
+4. Jalankan AI Server: `python app.py`
+   * Server akan berjalan di `http://127.0.0.1:5000`. Pastikan ini selalu menyala saat menggunakan fitur absensi.
+
+### 6. Face Data Migration
+Setelah database Laravel siap, Anda perlu men-generate data biometrik (vector embedding) untuk user yang sudah ada:
+1. Pastikan AI Server (`app.py`) sudah menyala.
+2. Jalankan perintah: `php artisan face:migrate-embeddings`
+
 The application will now be running and accessible at [http://localhost:8000](https://www.google.com/search?q=http://localhost:8000). You can log in with the admin user created during the seeding process to begin managing the application.
