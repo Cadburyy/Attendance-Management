@@ -31,7 +31,6 @@
         overflow-y: auto;
     }
 
-    /* Mobile responsiveness for the list card */
     @media (max-width: 991.98px) {
         .absence-list {
             height: auto;
@@ -71,13 +70,13 @@
 <div class="dashboard-container">
     <div class="dashboard-header mb-5 d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-            <h1 class="display-5 fw-bold mb-0" style="color: #0d3b66;">Halo, {{ Auth::user()->name }}! 👋</h1>
+            <h1 class="display-5 fw-bold mb-0" style="color: #0d3b66;">Hello, {{ Auth::user()->name }}! 👋</h1>
         </div>
         
         <div class="text-end">
             <h3 class="fw-bold mb-0" style="color: #0d3b66;">
-                {{ now()->timezone('Asia/Jakarta')->format('l, F d, Y') }} 
-                <span class="ms-2 opacity-75">| {{ now()->timezone('Asia/Jakarta')->format('h:i A') }}</span>
+                {{ now()->timezone('Asia/Jakarta')->format('l, d F Y') }} 
+                <span class="ms-2 opacity-75">| {{ now()->timezone('Asia/Jakarta')->format('h:i A') }} WIB</span>
             </h3>
         </div>
     </div>
@@ -106,7 +105,7 @@
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div class="stat-content">
-                    <p class="stat-label">Kehadiran Hari Ini</p>
+                    <p class="stat-label">Today's Attendance</p>
                     <h2 class="stat-value">{{ $totalAttendanceToday }}</h2>
                 </div>
             </div>
@@ -118,7 +117,7 @@
                     <i class="fas fa-times-circle"></i>
                 </div>
                 <div class="stat-content">
-                    <p class="stat-label">Absensi Hari Ini</p>
+                    <p class="stat-label">Today's Absences</p>
                     <h2 class="stat-value">{{ $totalAbsenceToday }}</h2>
                 </div>
             </div>
@@ -130,8 +129,8 @@
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div class="stat-content">
-                    <p class="stat-label">Hadir Bulan Ini</p>
-                    <h2 class="stat-value">{{ $monthlyStats['present'] + $monthlyStats['late'] }}</h2>
+                    <p class="stat-label">Present This Month</p>
+                    <h2 class="stat-value">{{ $monthlyStats['present'] }}</h2>
                 </div>
             </div>
         </div>
@@ -142,7 +141,7 @@
                     <i class="fas fa-hourglass-half"></i>
                 </div>
                 <div class="stat-content">
-                    <p class="stat-label">Permintaan Tertunda</p>
+                    <p class="stat-label">Pending Requests</p>
                     <h2 class="stat-value">{{ $pendingOverrides }}</h2>
                 </div>
             </div>
@@ -153,7 +152,7 @@
         <div class="col-lg-8">
             <div class="chart-card">
                 <div class="chart-header">
-                    <h5 class="mb-0">Ringkasan Kehadiran 7 Hari</h5>
+                    <h5 class="mb-0">Weekly Attendance Summary</h5>
                 </div>
                 <div class="chart-body">
                     <canvas id="attendanceChart"></canvas>
@@ -164,7 +163,7 @@
         <div class="col-lg-4">
             <div class="chart-card">
                 <div class="chart-header">
-                    <h5 class="mb-0">Distribusi Status Bulanan</h5>
+                    <h5 class="mb-0">Monthly Status Distribution</h5>
                 </div>
                 <div class="chart-body">
                     <canvas id="monthlyStatsChart"></canvas>
@@ -177,7 +176,7 @@
         <div class="col-lg-6">
             <div class="chart-card">
                 <div class="chart-header">
-                    <h5 class="mb-0">Permintaan Perubahan 7 Hari</h5>
+                    <h5 class="mb-0">Weekly Change Requests</h5>
                 </div>
                 <div class="chart-body">
                     <canvas id="absenceChart"></canvas>
@@ -188,23 +187,23 @@
         <div class="col-lg-6">
             <div class="chart-card">
                 <div class="chart-header">
-                    <h5 class="mb-0">Permintaan Perubahan Terbaru</h5>
+                    <h5 class="mb-0">Recent Change Requests</h5>
                 </div>
                 <div class="absence-list">
                     @forelse($recentOverrides as $override)
                         <div class="absence-item">
                             <div class="absence-info">
                                 <p class="absence-name">{{ $override->user->name }}</p>
-                                <small class="absence-details">{{ $override->date->format('M d, Y') }} • Ke {{ ucfirst($override->requested_status) }}</small>
+                                <small class="absence-details">{{ \Carbon\Carbon::parse($override->date)->format('M d, Y') }} • To {{ ucfirst($override->requested_status) }}</small>
                             </div>
                             <span class="badge-status bg-warning text-dark">
-                                Menunggu
+                                Pending
                             </span>
                         </div>
                     @empty
                         <div class="empty-state">
                             <i class="fas fa-check-circle" style="color: #10b981; opacity: 0.5;"></i>
-                            <p>Tidak ada permintaan perubahan terbaru</p>
+                            <p>No recent change requests</p>
                         </div>
                     @endforelse
                 </div>
@@ -252,7 +251,7 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'Hadir',
+                            label: 'Present',
                             data: presentData,
                             borderColor: colors.primary,
                             backgroundColor: 'rgba(13, 59, 102, 0.08)',
@@ -265,7 +264,7 @@
                             pointBorderWidth: 2,
                         },
                         {
-                            label: 'Absen/Sakit/Izin',
+                            label: 'Absent/Sick/Leave',
                             data: absentData,
                             borderColor: colors.danger,
                             backgroundColor: 'rgba(230, 57, 70, 0.08)',
@@ -278,7 +277,7 @@
                             pointBorderWidth: 2,
                         },
                         {
-                            label: 'Terlambat',
+                            label: 'Late',
                             data: lateData,
                             borderColor: colors.warning,
                             backgroundColor: 'rgba(247, 127, 0, 0.08)',
@@ -305,7 +304,7 @@
             new Chart(document.getElementById('monthlyStatsChart'), {
                 type: 'doughnut',
                 data: {
-                    labels: ['Hadir', 'Absen', 'Terlambat', 'Izin', 'Sakit'],
+                    labels: ['Present', 'Absent', 'Late', 'Leave', 'Sick'],
                     datasets: [{
                         data: [
                             monthlyStats.present, 
@@ -329,7 +328,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Permintaan Perubahan Status',
+                        label: 'Status Change Requests',
                         data: overrideRequestData,
                         backgroundColor: colors.danger,
                         borderRadius: 10,

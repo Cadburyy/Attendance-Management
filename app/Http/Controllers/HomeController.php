@@ -20,7 +20,6 @@ class HomeController extends Controller
     {
         $user = Auth::user();
         
-        // Enforce WIB explicitly for all time-based data pulling
         $today = now()->timezone('Asia/Jakarta')->toDateString();
         $startOfMonth = now()->timezone('Asia/Jakarta')->startOfMonth()->toDateString();
         $endOfMonth = now()->timezone('Asia/Jakarta')->endOfMonth()->toDateString();
@@ -30,8 +29,6 @@ class HomeController extends Controller
             $queryBase->where('user_id', $user->id);
         }
         
-        // MEMORY FIX 1: Bypass potential bad custom scopes (forDateRange, byStatus)
-        // Optimize 5 separate queries into 1 grouped query.
         $monthlyRawStats = (clone $queryBase)
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->select('status', DB::raw('count(*) as total'))
@@ -49,9 +46,7 @@ class HomeController extends Controller
         
         $totalAttendanceToday = (clone $queryBase)->where('date', $today)->whereIn('status', ['present', 'late'])->count();
         $totalAbsenceToday = (clone $queryBase)->where('date', $today)->whereIn('status', ['absent', 'sick', 'leave'])->count();
-        
-        // MEMORY FIX 2: Eliminate the N+1 28-query loop. 
-        // Group everything into 2 queries instead of executing 4 queries per day inside a loop.
+
         $startDate7Days = now()->timezone('Asia/Jakarta')->subDays(6)->toDateString();
 
         $sevenDaysRawData = (clone $queryBase)
@@ -91,13 +86,11 @@ class HomeController extends Controller
             
             $overrideRequestData[] = $overrideRawData[$date] ?? 0;
         }
-        
-        // Empty to prevent memory leaks if thousands of users exist
+
         $userStats = []; 
-        
-        // MEMORY FIX 3: Specify the relationship columns to prevent deep nested eager loading
+
         $recentOverrides = (clone $queryBase)
-            ->with('user:id,name') // Only load id and name for the user
+            ->with('user:id,name')
             ->where('override_status', 'pending')
             ->orderBy('updated_at', 'desc')
             ->limit(5)
@@ -114,14 +107,14 @@ class HomeController extends Controller
             if ($todayRecord && $todayRecord->check_in && !$todayRecord->check_out && now()->timezone('Asia/Jakarta')->hour >= 17) {
                  $anomalies[] = [
                      'type' => 'warning', 'icon' => 'fa-exclamation-triangle',
-                     'title' => 'Lupa Check-Out', 'message' => 'Anda belum melakukan check-out hari ini.'
+                     'title' => 'Missing Check-Out', 'message' => "You haven't checked out today."
                  ];
             }
         } else {
              if ($pendingOverrides > 0) {
                  $anomalies[] = [
                      'type' => 'info', 'icon' => 'fa-info-circle',
-                     'title' => 'Permintaan Menunggu', 'message' => "Ada $pendingOverrides permintaan perubahan status yang perlu persetujuan Anda."
+                     'title' => 'Pending Requests', 'message' => "There are $pendingOverrides status change requests pending your approval."
                  ];
              }
         }
@@ -159,7 +152,7 @@ class HomeController extends Controller
                 'type' => 'warning',
                 'title' => 'Outside Working Hours',
                 'message' => 'You are accessing the system outside normal working hours (' . 
-                    $workingHourStart . ':00 - ' . $workingHourEnd . ':00)',
+                    sprintf('%02d:00', $workingHourStart) . ' - ' . sprintf('%02d:00', $workingHourEnd) . ')',
                 'icon' => 'fa-clock'
             ];
         }
@@ -187,7 +180,6 @@ class HomeController extends Controller
             ];
         }
 
-        // MEMORY FIX 4: Explicitly query rather than relying on custom model scopes
         $monthAbsenceCount = Attendance::where('user_id', $user->id)
             ->whereBetween('date', [
                 now()->timezone('Asia/Jakarta')->startOfMonth()->toDateString(), 

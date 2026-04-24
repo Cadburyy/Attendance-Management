@@ -1,6 +1,18 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $oldCheckIn = old('check_in');
+    $oldCheckInParts = $oldCheckIn ? explode(':', $oldCheckIn) : [];
+    $oldCheckInHour = $oldCheckInParts[0] ?? '';
+    $oldCheckInMinute = $oldCheckInParts[1] ?? '';
+
+    $oldCheckOut = old('check_out');
+    $oldCheckOutParts = $oldCheckOut ? explode(':', $oldCheckOut) : [];
+    $oldCheckOutHour = $oldCheckOutParts[0] ?? '';
+    $oldCheckOutMinute = $oldCheckOutParts[1] ?? '';
+@endphp
+
 <div class="form-wrapper">
     <div class="form-container">
         <div class="form-header">
@@ -75,18 +87,50 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="check_in" class="form-label">Check-In Time</label>
-                    <input type="time" class="form-input @error('check_in') error @enderror" 
-                        id="check_in" name="check_in" value="{{ old('check_in') }}">
+                    <label class="form-label">Check-In Time</label>
+                    <div class="time-picker-wrapper">
+                        <select id="check_in_hour" class="form-input @error('check_in') error @enderror" onchange="updateHiddenTime('check_in')">
+                            <option value="">HH</option>
+                            @for($i = 0; $i <= 23; $i++)
+                                @php $h = str_pad($i, 2, '0', STR_PAD_LEFT); @endphp
+                                <option value="{{ $h }}" {{ $oldCheckInHour === $h ? 'selected' : '' }}>{{ $h }}</option>
+                            @endfor
+                        </select>
+                        <span class="time-separator">:</span>
+                        <select id="check_in_minute" class="form-input @error('check_in') error @enderror" onchange="updateHiddenTime('check_in')">
+                            <option value="">MM</option>
+                            @for($i = 0; $i <= 59; $i++)
+                                @php $m = str_pad($i, 2, '0', STR_PAD_LEFT); @endphp
+                                <option value="{{ $m }}" {{ $oldCheckInMinute === $m ? 'selected' : '' }}>{{ $m }}</option>
+                            @endfor
+                        </select>
+                    </div>
+                    <input type="hidden" id="check_in_hidden" name="check_in" value="{{ $oldCheckIn }}">
                     @error('check_in')
                         <span class="error-text">{{ $message }}</span>
                     @enderror
                 </div>
 
                 <div class="form-group">
-                    <label for="check_out" class="form-label">Check-Out Time</label>
-                    <input type="time" class="form-input @error('check_out') error @enderror" 
-                        id="check_out" name="check_out" value="{{ old('check_out') }}">
+                    <label class="form-label">Check-Out Time</label>
+                    <div class="time-picker-wrapper">
+                        <select id="check_out_hour" class="form-input @error('check_out') error @enderror" onchange="updateHiddenTime('check_out')">
+                            <option value="">HH</option>
+                            @for($i = 0; $i <= 23; $i++)
+                                @php $h = str_pad($i, 2, '0', STR_PAD_LEFT); @endphp
+                                <option value="{{ $h }}" {{ $oldCheckOutHour === $h ? 'selected' : '' }}>{{ $h }}</option>
+                            @endfor
+                        </select>
+                        <span class="time-separator">:</span>
+                        <select id="check_out_minute" class="form-input @error('check_out') error @enderror" onchange="updateHiddenTime('check_out')">
+                            <option value="">MM</option>
+                            @for($i = 0; $i <= 59; $i++)
+                                @php $m = str_pad($i, 2, '0', STR_PAD_LEFT); @endphp
+                                <option value="{{ $m }}" {{ $oldCheckOutMinute === $m ? 'selected' : '' }}>{{ $m }}</option>
+                            @endfor
+                        </select>
+                    </div>
+                    <input type="hidden" id="check_out_hidden" name="check_out" value="{{ $oldCheckOut }}">
                     @error('check_out')
                         <span class="error-text">{{ $message }}</span>
                     @enderror
@@ -269,6 +313,25 @@
         font-weight: 500;
     }
 
+    .time-picker-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .time-picker-wrapper select {
+        flex: 1;
+        cursor: pointer;
+        appearance: auto;
+        text-align: center;
+    }
+
+    .time-separator {
+        font-weight: 700;
+        font-size: 18px;
+        color: #4b5563;
+    }
+
     .form-actions {
         display: flex;
         gap: 12px;
@@ -330,4 +393,18 @@
         }
     }
 </style>
+
+<script>
+    function updateHiddenTime(field) {
+        const hour = document.getElementById(field + '_hour').value;
+        const minute = document.getElementById(field + '_minute').value;
+        const hiddenInput = document.getElementById(field + '_hidden');
+
+        if (hour !== '' && minute !== '') {
+            hiddenInput.value = hour + ':' + minute;
+        } else {
+            hiddenInput.value = '';
+        }
+    }
+</script>
 @endsection

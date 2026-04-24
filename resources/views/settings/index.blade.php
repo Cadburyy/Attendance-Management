@@ -57,18 +57,16 @@
         border-radius: 8px;
         font-size: 14px;
         transition: all 0.3s ease;
-        height: 50px; /* Forces exact uniform height across all inputs */
+        height: 50px;
         background-color: white;
         box-sizing: border-box;
     }
 
-    /* specific tweak to center the file chooser button within the 50px height */
     input[type="file"].input-custom {
         padding: 10px 16px;
         line-height: 1.6;
     }
 
-    /* modernizing the select dropdown to match the input boxes */
     select.input-custom {
         appearance: none;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -83,23 +81,46 @@
         box-shadow: 0 0 0 3px rgba(13, 59, 102, 0.1);
     }
 
-    .asset-preview {
+    .current-asset-box {
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px;
-        background: #f9fafb;
-        border-radius: 10px;
-        border: 1px solid #e5e7eb;
-        margin-top: 10px;
+        gap: 16px;
+        padding: 16px;
+        margin-bottom: 12px;
     }
 
-    .asset-preview img {
-        object-fit: contain;
+    .current-asset-preview {
+        width: 64px;
+        height: 64px;
         background: white;
+        border-radius: 8px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
         padding: 4px;
-        border-radius: 4px;
-        border: 1px solid #eee;
+    }
+
+    .current-asset-preview img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    .current-asset-info strong {
+        display: block;
+        font-size: 14px;
+        color: #334155;
+        margin-bottom: 2px;
+    }
+
+    .current-asset-info span {
+        font-size: 12px;
+        color: #64748b;
     }
 
     .btn-save {
@@ -158,7 +179,7 @@
     <div class="page-header mb-5">
         <div class="header-content">
             <h1 class="page-title">Edit Appearance</h1>
-            <p class="page-subtitle">Manage branding, logos, and global typography</p>
+            <p class="page-subtitle">Manage company, logos, and global typography</p>
         </div>
     </div>
 
@@ -190,10 +211,9 @@
 
             <div class="row g-4">
                 <div class="col-md-6">
-                    <label for="brand_name" class="form-label-custom">Brand Name</label>
+                    <label for="brand_name" class="form-label-custom">Company Name</label>
                     <input type="text" name="brand_name" id="brand_name" class="input-custom"
                            value="{{ old('brand_name', $settings['brand_name'] ?? '') }}">
-                    <small class="text-muted d-block mt-2">Visible next to the logo in the navigation bar.</small>
                 </div>
 
                 <div class="col-md-6">
@@ -205,29 +225,48 @@
                             </option>
                         @endforeach
                     </select>
-                    <small class="text-muted d-block mt-2">The system will automatically load this Google Font.</small>
                 </div>
 
                 <div class="col-md-6">
-                    <label for="logo" class="form-label-custom">Main Logo (PNG)</label>
+                    <label class="form-label-custom">Main Logo (PNG)</label>
+                    
+                    <div class="current-asset-box">
+                        <div class="current-asset-preview">
+                            @if(!empty($settings['logo_path']))
+                                <img src="{{ asset('storage/'.$settings['logo_path']) }}" alt="Current Logo">
+                            @else
+                                <i class="fas fa-image text-muted" style="font-size: 24px;"></i>
+                            @endif
+                        </div>
+                        <div class="current-asset-info">
+                            <strong>Current Logo</strong>
+                            <span>{{ !empty($settings['logo_path']) ? 'Active logo installed' : 'No logo yet' }}</span>
+                        </div>
+                    </div>
+
                     <input type="file" name="logo" id="logo" class="input-custom" accept="image/png">
-                    @if(!empty($settings['logo_path']))
-                        <div class="asset-preview">
-                            <img src="{{ asset('storage/'.$settings['logo_path']) }}" alt="Logo" style="height:40px">
-                            <span class="text-muted" style="font-size: 12px;">Current logo active</span>
-                        </div>
-                    @endif
+                    <small class="text-muted d-block mt-2">Upload to replace the current logo.</small>
                 </div>
 
                 <div class="col-md-6">
-                    <label for="favicon" class="form-label-custom">Favicon / Browser Icon</label>
-                    <input type="file" name="favicon" id="favicon" class="input-custom" accept="image/*">
-                    @if(!empty($settings['favicon_path']))
-                        <div class="asset-preview">
-                            <img src="{{ asset('storage/'.$settings['favicon_path']) }}" alt="Favicon" style="height:24px">
-                            <span class="text-muted" style="font-size: 12px;">Current favicon active</span>
+                    <label class="form-label-custom">Favicon / Browser Icon</label>
+                    
+                    <div class="current-asset-box">
+                        <div class="current-asset-preview">
+                            @if(!empty($settings['favicon_path']))
+                                <img src="{{ asset('storage/'.$settings['favicon_path']) }}" alt="Current Favicon">
+                            @else
+                                <i class="fas fa-globe text-muted" style="font-size: 24px;"></i>
+                            @endif
                         </div>
-                    @endif
+                        <div class="current-asset-info">
+                            <strong>Current Favicon</strong>
+                            <span>{{ !empty($settings['favicon_path']) ? 'Active favicon installed' : 'No favicon yet' }}</span>
+                        </div>
+                    </div>
+
+                    <input type="file" name="favicon" id="favicon" class="input-custom" accept="image/*">
+                    <small class="text-muted d-block mt-2">Upload to replace the current favicon.</small>
                 </div>
 
                 <div class="col-12 text-center mt-5">

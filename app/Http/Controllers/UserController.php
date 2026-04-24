@@ -86,8 +86,13 @@ class UserController extends Controller
             'name' => 'required|unique:users,name',
             'email' => ['required', 'email', 'unique:users,email', 'regex:/^[^\s@]+@[^\s@]+\.(com|id|net|org|co\.id|ac\.id)$/i'],
             'password' => ['required', 'same:confirm-password', Password::min(12)->mixedCase()->numbers()->symbols()],
+            'name' => 'required|unique:users,name',
+            'email' => ['required', 'email', 'unique:users,email', 'regex:/^[^\s@]+@[^\s@]+\.(com|id|net|org|co\.id|ac\.id)$/i'],
+            'password' => ['required', 'same:confirm-password', Password::min(12)->mixedCase()->numbers()->symbols()],
             'roles' => 'required|array',
             'picture' => 'required|image|mimes:jpeg,png,jpg|max:2048'
+        ], [
+            'email.regex' => 'A valid email domain is required (e.g., .com, .id, .net, .org, .co.id, .ac.id).'
         ], [
             'email.regex' => 'A valid email domain is required (e.g., .com, .id, .net, .org, .co.id, .ac.id).'
         ]);
@@ -103,6 +108,7 @@ class UserController extends Controller
         }
 
         $input = $request->except(['picture', 'confirm-password']);
+
 
         $input['salt'] = bin2hex(random_bytes(16)); 
         $input['password'] = Hash::make($request->input('password'));
@@ -197,8 +203,13 @@ class UserController extends Controller
             'name' => 'required|unique:users,name,' . $id,
             'email' => ['required', 'email', 'unique:users,email,' . $id, 'regex:/^[^\s@]+@[^\s@]+\.(com|id|net|org|co\.id|ac\.id)$/i'],
             'password' => ['nullable', 'same:confirm-password', Password::min(12)->mixedCase()->numbers()->symbols()],
+            'name' => 'required|unique:users,name,' . $id,
+            'email' => ['required', 'email', 'unique:users,email,' . $id, 'regex:/^[^\s@]+@[^\s@]+\.(com|id|net|org|co\.id|ac\.id)$/i'],
+            'password' => ['nullable', 'same:confirm-password', Password::min(12)->mixedCase()->numbers()->symbols()],
             'roles' => 'required|array',
             'picture' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+        ], [
+            'email.regex' => 'A valid email domain is required (e.g., .com, .id, .net, .org, .co.id, .ac.id).'
         ], [
             'email.regex' => 'A valid email domain is required (e.g., .com, .id, .net, .org, .co.id, .ac.id).'
         ]);

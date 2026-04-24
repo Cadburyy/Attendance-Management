@@ -40,7 +40,7 @@
 <div class="page-wrapper">
     <div class="page-header mb-5">
         <div class="header-content">
-            <h1 class="page-title">Employees</h1>
+            <h1 class="page-title">Employee Data</h1>
             <p class="page-subtitle">Manage employee accounts and roles</p>
         </div>
         @can('user')
