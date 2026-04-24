@@ -21,7 +21,8 @@ class User extends Authenticatable
         'encrypted_dek',
         'picture_iv',
         'dek_iv',
-        'face_embedding'
+        'face_embedding',
+        'picture_hash'
     ];
 
     protected $hidden = [

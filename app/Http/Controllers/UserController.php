@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Http;
 
 class UserController extends Controller
@@ -22,7 +23,6 @@ class UserController extends Controller
 
     private function protectSettingUser(User $targetUser): void
     {
-        /** @var User $authUser */
         $authUser = Auth::user();
         if (!$authUser->can('setting') && $targetUser->can('setting')) {
             throw ValidationException::withMessages(['error' => ["Can't edit this user."]]);
@@ -31,7 +31,6 @@ class UserController extends Controller
 
     private function checkAdminITProtection(User $targetUser): ?RedirectResponse
     {
-        /** @var User $authUser */
         $authUser = Auth::user();
         if ($authUser->hasRole('User') && $targetUser->hasRole('AdminIT')) {
             return redirect()->route('users.index')->with('error', 'The Admin role is not permitted to modify users with the AdminIT role.');
@@ -39,6 +38,9 @@ class UserController extends Controller
         return null;
     }
 
+    /**
+     * Get face embedding vector from AI Server
+     */
     private function getFaceEmbedding($imageFile)
     {
         try {
@@ -81,14 +83,15 @@ class UserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|same:confirm-password|min:6|max:18',
+            'name' => 'required|unique:users,name',
+            'email' => ['required', 'email', 'unique:users,email', 'regex:/^[^\s@]+@[^\s@]+\.(com|id|net|org|co\.id|ac\.id)$/i'],
+            'password' => ['required', 'same:confirm-password', Password::min(12)->mixedCase()->numbers()->symbols()],
             'roles' => 'required|array',
             'picture' => 'required|image|mimes:jpeg,png,jpg|max:2048'
+        ], [
+            'email.regex' => 'A valid email domain is required (e.g., .com, .id, .net, .org, .co.id, .ac.id).'
         ]);
 
-        /** @var User $authUser */
         $authUser = Auth::user();
         if (!$authUser->can('setting')) {
             $assignedRoles = Role::whereIn('name', Arr::wrap($request->input('roles')))->get();
@@ -100,27 +103,33 @@ class UserController extends Controller
         }
 
         $input = $request->except(['picture', 'confirm-password']);
-        
-        // Generate a random 16-byte salt and store it for the database grading check
+
         $input['salt'] = bin2hex(random_bytes(16)); 
         $input['password'] = Hash::make($request->input('password'));
 
         if ($request->hasFile('picture')) {
+            $rawImage = file_get_contents($request->file('picture')->getRealPath());
+            $pictureHash = hash('sha256', $rawImage);
+
+            if (User::where('picture_hash', $pictureHash)->exists()) {
+                 throw ValidationException::withMessages(['picture' => ['This face scan is already registered to another user.']]);
+            }
+            $input['picture_hash'] = $pictureHash;
+
+            // AI Face Embedding (Vector Data)
+            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
+            
             $secretString = env('CUSTOM_DECRYPTION_KEY') ? env('CUSTOM_DECRYPTION_KEY') : 'AM2026';
             $kek = hash('sha256', $secretString, true);
             $dek = random_bytes(32);
             
             $pictureIv = random_bytes(16);
-            $rawImage = file_get_contents($request->file('picture')->getRealPath());
             $input['picture'] = openssl_encrypt($rawImage, 'aes-256-cbc', $dek, 0, $pictureIv);
             $input['picture_iv'] = base64_encode($pictureIv);
 
             $dekIv = random_bytes(16);
             $input['encrypted_dek'] = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
             $input['dek_iv'] = base64_encode($dekIv);
-
-            // AI Face Embedding
-            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
         }
 
         $input['role'] = $request->input('roles')[0];
@@ -185,17 +194,18 @@ class UserController extends Controller
         if ($response = $this->checkAdminITProtection($user)) return $response;
 
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email,' . $id,
-            'password' => 'nullable|same:confirm-password|min:6|max:18',
+            'name' => 'required|unique:users,name,' . $id,
+            'email' => ['required', 'email', 'unique:users,email,' . $id, 'regex:/^[^\s@]+@[^\s@]+\.(com|id|net|org|co\.id|ac\.id)$/i'],
+            'password' => ['nullable', 'same:confirm-password', Password::min(12)->mixedCase()->numbers()->symbols()],
             'roles' => 'required|array',
             'picture' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+        ], [
+            'email.regex' => 'A valid email domain is required (e.g., .com, .id, .net, .org, .co.id, .ac.id).'
         ]);
 
         $input = $request->except(['picture', 'confirm-password']);
         
         if (!empty($request->input('password'))) {
-            // Update the salt in the DB if the admin decides to change the password
             $input['salt'] = bin2hex(random_bytes(16)); 
             $input['password'] = Hash::make($request->input('password'));
         } else {
@@ -203,21 +213,28 @@ class UserController extends Controller
         }
 
         if ($request->hasFile('picture')) {
+            $rawImage = file_get_contents($request->file('picture')->getRealPath());
+            $pictureHash = hash('sha256', $rawImage);
+
+            if (User::where('picture_hash', $pictureHash)->where('id', '!=', $id)->exists()) {
+                 throw ValidationException::withMessages(['picture' => ['This face scan is already registered to another user.']]);
+            }
+            $input['picture_hash'] = $pictureHash;
+
+            // AI Face Embedding (Vector Data Update)
+            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
+
             $secretString = env('CUSTOM_DECRYPTION_KEY') ? env('CUSTOM_DECRYPTION_KEY') : 'AM2026';
             $kek = hash('sha256', $secretString, true);
             $dek = random_bytes(32);
             
             $pictureIv = random_bytes(16);
-            $rawImage = file_get_contents($request->file('picture')->getRealPath());
             $input['picture'] = openssl_encrypt($rawImage, 'aes-256-cbc', $dek, 0, $pictureIv);
             $input['picture_iv'] = base64_encode($pictureIv);
 
             $dekIv = random_bytes(16);
             $input['encrypted_dek'] = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
             $input['dek_iv'] = base64_encode($dekIv);
-
-            // AI Face Embedding
-            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
         }
 
         $input['role'] = $request->input('roles')[0];
