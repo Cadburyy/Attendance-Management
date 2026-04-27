@@ -41,14 +41,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/attendance-stats', [AttendanceController::class, 'getStats'])->name('attendance.stats');
 
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-    Route::put('/settings', [SettingsController::class, 'updateAppearance'])->name('settings.update');
+    Route::put('/settings/appearance', [SettingsController::class, 'updateAppearance'])->name('settings.update.appearance');
+    Route::put('/settings/absence-time', [SettingsController::class, 'updateAbsenceTime'])->name('settings.update.absence');
     
     Route::get('/users/{id}/picture', [UserController::class, 'showPicture'])->name('users.picture');
     Route::get('/users/{id}/decrypt', [UserController::class, 'decryptImage'])->name('users.decrypt');
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
 
-    // AI Absence Settings
-    Route::get('/ai-absence', [AbsenceController::class, 'settings'])->name('ai-absence.settings');
-    Route::put('/ai-absence', [AbsenceController::class, 'updateSettings'])->name('ai-absence.update');
 });

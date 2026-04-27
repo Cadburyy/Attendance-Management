@@ -178,8 +178,8 @@
 <div class="page-wrapper">
     <div class="page-header mb-5">
         <div class="header-content">
-            <h1 class="page-title">Edit Appearance</h1>
-            <p class="page-subtitle">Manage company, logos, and global typography</p>
+            <h1 class="page-title">General Settings</h1>
+            <p class="page-subtitle">Manage company identity and attendance schedules</p>
         </div>
     </div>
 
@@ -204,8 +204,10 @@
         </div>
     @endif
 
+    <!-- Section 1: Edit Appearance -->
     <div class="settings-card">
-        <form method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data">
+        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Edit Appearance</h3>
+        <form method="POST" action="{{ route('settings.update.appearance') }}" enctype="multipart/form-data">
             @csrf
             @method('PUT')
 
@@ -269,9 +271,50 @@
                     <small class="text-muted d-block mt-2">Upload to replace the current favicon.</small>
                 </div>
 
-                <div class="col-12 text-center mt-5">
+                <div class="col-12 text-end mt-4">
                     <button type="submit" class="btn-save">
-                        <i class="fas fa-save me-2"></i> Save Appearance Changes
+                        <i class="fas fa-save me-2"></i> Save Appearance
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Section 2: Edit Absence Time -->
+    <div class="settings-card">
+        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Edit Absence Time</h3>
+        <form method="POST" action="{{ route('settings.update.absence') }}">
+            @csrf
+            @method('PUT')
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label for="attendance_in_start" class="form-label-custom">Check-in Start Time</label>
+                    <input type="time" name="attendance_in_start" id="attendance_in_start" class="input-custom"
+                           value="{{ old('attendance_in_start', $settings['attendance_in_start']) }}">
+                </div>
+
+                <div class="col-md-6">
+                    <label for="attendance_in_end" class="form-label-custom">Check-in Late Boundary</label>
+                    <input type="time" name="attendance_in_end" id="attendance_in_end" class="input-custom"
+                           value="{{ old('attendance_in_end', $settings['attendance_in_end']) }}">
+                </div>
+
+                <div class="col-md-6">
+                    <label for="attendance_out_start" class="form-label-custom">Check-out Start Time</label>
+                    <input type="time" name="attendance_out_start" id="attendance_out_start" class="input-custom"
+                           value="{{ old('attendance_out_start', $settings['attendance_out_start']) }}">
+                </div>
+
+                <div class="col-md-6">
+                    <label for="attendance_out_end" class="form-label-custom">Check-out End Time</label>
+                    <input type="time" name="attendance_out_end" id="attendance_out_end" class="input-custom"
+                           value="{{ old('attendance_out_end', $settings['attendance_out_end']) }}">
+                </div>
+
+                <div class="col-12 text-end mt-4">
+                    <button type="submit" class="btn-save">
+                        <i class="fas fa-clock me-2"></i> Save Absence Times
                     </button>
                 </div>
             </div>

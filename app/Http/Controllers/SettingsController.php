@@ -23,6 +23,11 @@ class SettingsController extends Controller
             'font' => 'Nunito',
             'logo_path' => null,
             'favicon_path' => null,
+            // Attendance Defaults
+            'attendance_in_start' => '07:00',
+            'attendance_in_end' => '09:00',
+            'attendance_out_start' => '16:00',
+            'attendance_out_end' => '18:00',
         ];
 
         $settings = array_merge($defaults, $settings);
@@ -64,7 +69,26 @@ class SettingsController extends Controller
 
         cache()->forget('app_settings');
 
-        return redirect()->route('settings.index')->with('success', 'Settings updated successfully!');
+        return redirect()->route('settings.index')->with('success', 'Appearance updated successfully!');
+    }
+
+    public function updateAbsenceTime(Request $request)
+    {
+        $request->validate([
+            'attendance_in_start' => 'required|date_format:H:i',
+            'attendance_in_end' => 'required|date_format:H:i',
+            'attendance_out_start' => 'required|date_format:H:i',
+            'attendance_out_end' => 'required|date_format:H:i',
+        ]);
+
+        $this->putSetting('attendance_in_start', $request->attendance_in_start);
+        $this->putSetting('attendance_in_end', $request->attendance_in_end);
+        $this->putSetting('attendance_out_start', $request->attendance_out_start);
+        $this->putSetting('attendance_out_end', $request->attendance_out_end);
+
+        cache()->forget('app_settings');
+
+        return redirect()->route('settings.index')->with('success', 'Attendance times updated successfully!');
     }
 
     protected function putSetting(string $key, $value): void
