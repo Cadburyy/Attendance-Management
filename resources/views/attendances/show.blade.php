@@ -130,6 +130,16 @@
                 </div>
             @endif
 
+            @if($attendance->image)
+                <div class="form-group mt-3">
+                    <label class="form-label"><i class="fas fa-camera"></i> Captured Photo (AI Verification)</label>
+                    <div class="photo-preview-container" style="margin-top: 10px;">
+                        <img src="{{ asset('storage/' . $attendance->image) }}" alt="Attendance Photo" 
+                             style="width: 100%; max-width: 400px; border-radius: 12px; border: 3px solid #0d3b66; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    </div>
+                </div>
+            @endif
+
             <div class="form-actions">
                 @can('override')
                     <a href="{{ route('attendances.edit', $attendance) }}" class="btn btn-edit">

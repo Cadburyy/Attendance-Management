@@ -215,6 +215,31 @@
 
         .btn-back:hover { color: var(--accent); }
 
+        .btn-manual-trigger {
+            background: var(--primary);
+            border: none;
+            color: white;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn-manual-trigger:hover {
+            background: #1e293b;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+        }
+
         /* Notification Toast */
         #toast {
             position: fixed;
@@ -328,6 +353,9 @@
         </div>
 
         <div class="footer">
+            <button class="btn-manual-trigger" onclick="showManualSearch()">
+                <i class="fas fa-keyboard"></i> Absen Manual
+            </button>
             <a href="/" class="btn-back" id="btn-back-dashboard">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
@@ -377,6 +405,7 @@
     let lastProcessedUser = null;
     let lastProcessedTime = 0;
     let allUsers = []; // Local cache for instant search
+    let lastCapturedImage = null;
     let analysisInterval = null;
     let currentAbortController = null;
 
@@ -475,9 +504,18 @@
         }
     }
 
+    function capturePhoto() {
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        lastCapturedImage = canvas.toDataURL('image/webp', 0.8);
+    }
+
     function showConfirmation(name) {
         isModalOpen = true;
         detectedUser = name;
+        capturePhoto();
         document.getElementById('detected-name').innerText = name;
         document.getElementById('confirm-modal').style.display = 'flex';
         document.getElementById('detection-view').style.display = 'block';
@@ -487,6 +525,12 @@
 
     function confirmIdentity() {
         if (!detectedUserId && !detectedUser) return;
+        
+        // Jika belum ada foto (karena absen manual), ambil foto sekarang (Autocapture)
+        if (!lastCapturedImage) {
+            capturePhoto();
+        }
+        
         recordAttendance(detectedUserId || detectedUser);
         closeModal();
     }
@@ -495,6 +539,7 @@
         isModalOpen = false;
         detectedUser = null;
         detectedUserId = null;
+        lastCapturedImage = null;
         document.getElementById('confirm-modal').style.display = 'none';
         document.getElementById('user-search').value = '';
         document.getElementById('search-suggestions').style.display = 'none';
@@ -502,14 +547,21 @@
     }
 
     function showManualSearch() {
+        isModalOpen = true;
+        document.getElementById('confirm-modal').style.display = 'flex';
         document.getElementById('detection-view').style.display = 'none';
         document.getElementById('manual-search-section').style.display = 'block';
         document.getElementById('user-search').focus();
+        statusDisplay.innerHTML = '<i class="fas fa-keyboard text-accent"></i> <span>Manual Input Mode</span>';
     }
 
     function backToDetection() {
-        document.getElementById('detection-view').style.display = 'block';
-        document.getElementById('manual-search-section').style.display = 'none';
+        if (!detectedUser) {
+            closeModal();
+        } else {
+            document.getElementById('detection-view').style.display = 'block';
+            document.getElementById('manual-search-section').style.display = 'none';
+        }
     }
 
     async function fetchAllUsers() {
@@ -560,7 +612,10 @@
 
     async function recordAttendance(identity) {
         try {
-            const body = typeof identity === 'number' ? { user_id: identity } : { name: identity };
+            const body = typeof identity === 'number' 
+                ? { user_id: identity, image: lastCapturedImage } 
+                : { name: identity, image: lastCapturedImage };
+                
             const response = await fetch('{{ route("absence.record") }}', {
                 method: 'POST',
                 headers: { 

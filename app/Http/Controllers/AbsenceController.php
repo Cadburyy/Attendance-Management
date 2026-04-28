@@ -180,6 +180,19 @@ class AbsenceController extends Controller
             }
         }
 
+        // Simpan foto bukti jika ada
+        if ($request->filled('image')) {
+            $image = $request->image; // Base64 string
+            $image = str_replace('data:image/webp;base64,', '', $image);
+            $image = str_replace(' ', '+', $image);
+            
+            $fileName = 'attendance_' . $user->id . '_' . time() . '.webp';
+            $imagePath = 'attendance_photos/' . $fileName;
+            
+            \Illuminate\Support\Facades\Storage::disk('public')->put($imagePath, base64_decode($image));
+            $attendance->update(['image' => $imagePath]);
+        }
+
         return response()->json([
             'status' => 'success',
             'type' => $status,
