@@ -8,7 +8,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\AbsenceController;
-
+use App\Http\Controllers\Auth\OtpController;
 Route::get('/', function () {
     if (Auth::check()) {
         return redirect()->route('home');
@@ -23,8 +23,10 @@ Route::post('/absence/record', [AbsenceController::class, 'record'])->name('abse
 Route::get('/absence/recent', [AbsenceController::class, 'getRecent'])->name('absence.recent');
 
 Auth::routes();
-
+Route::get('/otp-resend', [App\Http\Controllers\Auth\OtpController::class, 'resend'])->name('otp.resend');
 Route::get('/home', [HomeController::class, 'index'])->name('home');
+Route::get('/otp-verify', [App\Http\Controllers\Auth\OtpController::class, 'showVerifyForm'])->name('otp.verify');
+Route::post('/otp-verify', [App\Http\Controllers\Auth\OtpController::class, 'verify'])->name('otp.verify.post');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/attendances/approvals', [AttendanceController::class, 'approvals'])->name('attendances.approvals');
@@ -48,5 +50,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/users/{id}/decrypt', [UserController::class, 'decryptImage'])->name('users.decrypt');
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
+
 
 });
