@@ -1,5 +1,5 @@
 @echo off
-cd capstone-ai
+cd ai_services
 echo Starting AI Attendance Server...
 python app.py
 pause

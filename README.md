@@ -54,7 +54,7 @@ With the database configured, you can set it up with the required tables and ini
 ### 5. AI Server Setup (Face & Uniform Recognition)
 Sistem ini menggunakan server Python terpisah untuk pengolahan AI.
 
-1. Buka terminal baru dan masuk ke folder AI: `cd capstone-ai`
+1. Buka terminal baru dan masuk ke folder AI: `cd ai_services`
 2. Buat Virtual Environment (Opsional tapi disarankan):
    * `python -m venv venv`
    * `venv\Scripts\activate` (Windows)

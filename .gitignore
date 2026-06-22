@@ -22,7 +22,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
-capstone-ai/venv
+ai_services/venv
 am_db
 /database/*.sqlite*
-capstone-ai/face_landmarker.task
+ai_services/face_landmarker.task
