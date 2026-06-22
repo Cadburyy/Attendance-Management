@@ -229,27 +229,20 @@ def analyze():
         if frame is None:
             return jsonify({'error': 'Invalid image'}), 400
 
-        # 1. YOLO Deteksi Pakaian dengan Filter Hari (skip in TRIAL_MODE)
-        if not TRIAL_MODE:
+        # 1. YOLO Deteksi Pakaian dengan Filter Hari (skip in TRIAL_MODE or on Fridays)
+        hari_angka = datetime.now().weekday()
+        is_friday = (hari_angka == 4)
+
+        if not TRIAL_MODE and not is_friday:
             results = model.predict(source=frame, conf=0.67, verbose=False)
-            
-            # 0=Monday, 1=Tuesday, ..., 4=Friday, ..., 6=Sunday
-            hari_angka = datetime.now().weekday() 
             pakaian_terdeteksi = False
             
             for result in results:
                 for box in result.boxes:
                     cls_id = int(box.cls[0])
-                    
-                    # Logika: Jika Jumat (4) boleh ID 0 & 1, Jika bukan Jumat hanya ID 0
-                    if hari_angka == 4:
-                        if cls_id in [0, 1]:
-                            pakaian_terdeteksi = True
-                            break
-                    else:
-                        if cls_id == 0:
-                            pakaian_terdeteksi = True
-                            break
+                    if cls_id == 0:
+                        pakaian_terdeteksi = True
+                        break
                 if pakaian_terdeteksi: break
 
             if not pakaian_terdeteksi:
