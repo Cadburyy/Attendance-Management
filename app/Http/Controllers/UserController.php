@@ -134,8 +134,18 @@ class UserController extends Controller
         }
 
         $input['role'] = $request->input('roles')[0];
-        $user = User::create($input);
-        $user->assignRole($request->input('roles'));
+
+        try {
+            $user = User::create($input);
+            $user->assignRole($request->input('roles'));
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() === '08S01' || str_contains($e->getMessage(), 'max_allowed_packet')) {
+                throw ValidationException::withMessages([
+                    'picture' => ['The uploaded picture is too large for the database system. Please upload a smaller image file.']
+                ]);
+            }
+            throw $e;
+        }
 
         return redirect()->route('users.index')->with('success', 'User created successfully with secured AI face data.');
     }
@@ -240,8 +250,17 @@ class UserController extends Controller
 
         $input['role'] = $request->input('roles')[0];
 
-        $user->update($input);
-        $user->syncRoles($request->input('roles'));
+        try {
+            $user->update($input);
+            $user->syncRoles($request->input('roles'));
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() === '08S01' || str_contains($e->getMessage(), 'max_allowed_packet')) {
+                throw ValidationException::withMessages([
+                    'picture' => ['The uploaded picture is too large for the database system. Please upload a smaller image file.']
+                ]);
+            }
+            throw $e;
+        }
         
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
     }

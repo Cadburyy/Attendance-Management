@@ -46,8 +46,8 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\Attendance::class);
     }
 
-    public function absences()
+    public function faceReferences()
     {
-        return $this->hasMany(\App\Models\Absence::class);
+        return $this->hasMany(\App\Models\FaceReference::class);
     }
 }

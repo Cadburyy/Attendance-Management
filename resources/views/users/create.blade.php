@@ -38,6 +38,19 @@
     .custom-modal-footer { margin-top: 28px; display: flex; justify-content: center; }
     .custom-modal-footer .btn { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; }
 
+    .roles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 8px; }
+    .role-card-wrapper { cursor: pointer; position: relative; display: block; margin: 0; }
+    .role-checkbox { position: absolute; opacity: 0; width: 0; height: 0; }
+    .role-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; background: #f9fafb; transition: all 0.2s ease; position: relative; }
+    .role-card-icon { width: 40px; height: 40px; border-radius: 10px; background: #e5e7eb; color: #4b5563; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s ease; }
+    .role-card-info { display: flex; flex-direction: column; gap: 2px; }
+    .role-card-title { font-size: 15px; font-weight: 700; color: #1f2937; margin: 0; line-height: 1.2; }
+    .role-card-desc { font-size: 11px; color: #6b7280; margin: 0; }
+    .role-card-check { position: absolute; top: 8px; right: 8px; font-size: 16px; color: #10b981; opacity: 0; transition: all 0.2s ease; }
+    .role-checkbox:checked + .role-card { border-color: #0d3b66; background: rgba(13, 59, 102, 0.05); }
+    .role-checkbox:checked + .role-card .role-card-icon { background: #0d3b66; color: white; }
+    .role-checkbox:checked + .role-card .role-card-check { opacity: 1; }
+
     @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } .form-actions { flex-direction: column; } .btn { width: 100%; } }
 </style>
 
@@ -75,12 +88,33 @@
 
             <div class="form-group">
                 <label class="form-label">Assign Role(s) <span class="required">*</span></label>
-                <select name="roles[]" class="form-input {{ $errors->has('roles') ? 'is-invalid' : '' }}" multiple required>
+                <div class="roles-grid">
                     @foreach ($roles as $value => $label)
-                        <option value="{{ $value }}">{{ $label }}</option>
+                        @if(!(Auth::user()->hasRole('HR') && $value === 'AdminIT'))
+                            <label class="role-card-wrapper">
+                                <input type="checkbox" name="roles[]" value="{{ $value }}" class="role-checkbox" {{ is_array(old('roles')) && in_array($value, old('roles')) ? 'checked' : '' }}>
+                                <div class="role-card">
+                                    <div class="role-card-icon">
+                                        @if($value === 'AdminIT')
+                                            <i class="fas fa-laptop-code"></i>
+                                        @elseif($value === 'HR')
+                                            <i class="fas fa-users-cog"></i>
+                                        @else
+                                            <i class="fas fa-user-tie"></i>
+                                        @endif
+                                    </div>
+                                    <div class="role-card-info">
+                                        <span class="role-card-title">{{ $label }}</span>
+                                        <span class="role-card-desc">Assign as {{ $label }}</span>
+                                    </div>
+                                    <div class="role-card-check">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                </div>
+                            </label>
+                        @endif
                     @endforeach
-                </select>
-            </div>
+                </div>
 
             <div class="form-group" style="padding: 24px 16px; border: 2px dashed #e5e7eb; border-radius: 10px; background: #f8fafc; text-align: center;">
                 <label class="form-label" style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px;">

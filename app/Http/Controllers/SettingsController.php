@@ -11,7 +11,7 @@ class SettingsController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:setting', ['only' => ['index', 'updateAppearance']]);
+        $this->middleware('permission:setting', ['only' => ['index', 'updateAppearance', 'updateAbsenceTime', 'updateGeolocation']]);
     }
 
     public function index()
@@ -28,6 +28,20 @@ class SettingsController extends Controller
             'attendance_in_end' => '09:00',
             'attendance_out_start' => '16:00',
             'attendance_out_end' => '18:00',
+            // Shift 1 (Morning)
+            'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
+            'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
+            // Shift 2 (Afternoon)
+            'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
+            'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
+            // Shift 3 (Night)
+            'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
+            'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
+            // Geolocation settings
+            'office_latitude' => '-6.200000',
+            'office_longitude' => '106.816666',
+            'office_radius' => '100',
+            'geolocation_enabled' => '0',
         ];
 
         $settings = array_merge($defaults, $settings);
@@ -74,21 +88,44 @@ class SettingsController extends Controller
 
     public function updateAbsenceTime(Request $request)
     {
-        $request->validate([
-            'attendance_in_start' => 'required|date_format:H:i',
-            'attendance_in_end' => 'required|date_format:H:i',
-            'attendance_out_start' => 'required|date_format:H:i',
-            'attendance_out_end' => 'required|date_format:H:i',
-        ]);
+        $rules = [];
+        for ($i = 1; $i <= 3; $i++) {
+            $rules["shift_{$i}_in_start"] = 'required|date_format:H:i';
+            $rules["shift_{$i}_in_end"] = 'required|date_format:H:i';
+            $rules["shift_{$i}_out_start"] = 'required|date_format:H:i';
+            $rules["shift_{$i}_out_end"] = 'required|date_format:H:i';
+        }
+        $request->validate($rules);
 
-        $this->putSetting('attendance_in_start', $request->attendance_in_start);
-        $this->putSetting('attendance_in_end', $request->attendance_in_end);
-        $this->putSetting('attendance_out_start', $request->attendance_out_start);
-        $this->putSetting('attendance_out_end', $request->attendance_out_end);
+        for ($i = 1; $i <= 3; $i++) {
+            $this->putSetting("shift_{$i}_in_start", $request->input("shift_{$i}_in_start"));
+            $this->putSetting("shift_{$i}_in_end", $request->input("shift_{$i}_in_end"));
+            $this->putSetting("shift_{$i}_out_start", $request->input("shift_{$i}_out_start"));
+            $this->putSetting("shift_{$i}_out_end", $request->input("shift_{$i}_out_end"));
+        }
 
         cache()->forget('app_settings');
 
-        return redirect()->route('settings.index')->with('success', 'Attendance times updated successfully!');
+        return redirect()->route('settings.index')->with('success', 'Shift times updated successfully!');
+    }
+
+    public function updateGeolocation(Request $request)
+    {
+        $request->validate([
+            'office_latitude' => 'required|numeric|between:-90,90',
+            'office_longitude' => 'required|numeric|between:-180,180',
+            'office_radius' => 'required|integer|min:10|max:5000', // meters
+            'geolocation_enabled' => 'required|boolean',
+        ]);
+
+        $this->putSetting('office_latitude', $request->office_latitude);
+        $this->putSetting('office_longitude', $request->office_longitude);
+        $this->putSetting('office_radius', $request->office_radius);
+        $this->putSetting('geolocation_enabled', $request->geolocation_enabled);
+
+        cache()->forget('app_settings');
+
+        return redirect()->route('settings.index')->with('success', 'Geolocation settings updated successfully!');
     }
 
     protected function putSetting(string $key, $value): void

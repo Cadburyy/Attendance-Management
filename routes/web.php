@@ -21,6 +21,8 @@ Route::post('/absence/analyze', [AbsenceController::class, 'proxyAnalyze'])->nam
 Route::get('/absence/all-users', [AbsenceController::class, 'getAllUsers'])->name('absence.all-users');
 Route::post('/absence/record', [AbsenceController::class, 'record'])->name('absence.record');
 Route::get('/absence/recent', [AbsenceController::class, 'getRecent'])->name('absence.recent');
+Route::post('/absence/liveness', [AbsenceController::class, 'proxyLiveness'])->name('absence.liveness');
+Route::post('/absence/verify-location', [AbsenceController::class, 'verifyGeolocation'])->name('absence.verify-location');
 
 Auth::routes();
 Route::get('/otp-resend', [App\Http\Controllers\Auth\OtpController::class, 'resend'])->name('otp.resend');
@@ -45,11 +47,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::put('/settings/appearance', [SettingsController::class, 'updateAppearance'])->name('settings.update.appearance');
     Route::put('/settings/absence-time', [SettingsController::class, 'updateAbsenceTime'])->name('settings.update.absence');
+    Route::put('/settings/geolocation', [SettingsController::class, 'updateGeolocation'])->name('settings.update.geolocation');
     
     Route::get('/users/{id}/picture', [UserController::class, 'showPicture'])->name('users.picture');
     Route::get('/users/{id}/decrypt', [UserController::class, 'decryptImage'])->name('users.decrypt');
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
-
-
 });

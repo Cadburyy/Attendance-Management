@@ -333,6 +333,32 @@
             </div>
         </div>
         <canvas id="canvas" style="display:none;"></canvas>
+
+        <!-- Liveness Overlay Card with premium glassmorphism design -->
+        <div id="liveness-overlay-card" style="display: none; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 18px 28px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); z-index: 100; width: 85%; max-width: 380px; text-align: center; color: white;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px;">
+                <i class="fas fa-shield-alt" style="color: var(--accent); font-size: 18px;"></i>
+                <span style="font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent);">Liveness Verification</span>
+            </div>
+            <p id="liveness-instruction" style="font-size: 18px; font-weight: 700; margin: 10px 0; color: #ffffff;"></p>
+            <div style="width: 100%; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; overflow: hidden; margin-top: 12px; margin-bottom: 8px;">
+                <div id="liveness-overlay-progress" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.2s linear;"></div>
+            </div>
+            <div id="liveness-steps-indicator" style="display: flex; justify-content: center; gap: 12px; margin-top: 10px;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <span id="step-dot-blink" style="width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: all 0.3s; display: inline-block;"></span>
+                    <span style="font-size: 9px; color: rgba(255, 255, 255, 0.6);">Kedip</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <span id="step-dot-turn_left" style="width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: all 0.3s; display: inline-block;"></span>
+                    <span style="font-size: 9px; color: rgba(255, 255, 255, 0.6);">Kiri</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <span id="step-dot-turn_right" style="width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: all 0.3s; display: inline-block;"></span>
+                    <span style="font-size: 9px; color: rgba(255, 255, 255, 0.6);">Kanan</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="info-section">
@@ -388,6 +414,16 @@
             </div>
             <button class="btn-confirm btn-no" style="width: 100%; margin-top: 15px;" onclick="backToDetection()">Kembali</button>
         </div>
+
+        <div id="liveness-challenge" style="display:none; text-align: center; padding: 20px;">
+            <div class="liveness-icon" style="font-size: 40px; color: var(--accent); margin-bottom: 15px;"><i class="fas fa-user-shield"></i></div>
+            <p class="confirm-title" style="margin-bottom: 5px;">Liveness Check</p>
+            <p id="challenge-instruction" style="font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 20px;">Blink your eyes</p>
+            <div class="liveness-progress-bar" style="width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-bottom: 15px;">
+                <div id="liveness-progress" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.2s linear;"></div>
+            </div>
+            <p style="color: #64748b; font-size: 13px;">Stay still and perform the action in front of the camera</p>
+        </div>
     </div>
 </div>
 
@@ -408,6 +444,72 @@
     let lastCapturedImage = null;
     let analysisInterval = null;
     let currentAbortController = null;
+
+    // Liveness Detection Variables
+    let livenessFrames = [];
+    let livenessInterval = null;
+    let currentChallenge = null;
+    let geolocationCoords = null; // Store coords for attendance record
+
+    // Parallel Liveness state variables
+    let livenessActive = false;
+    let remainingChallenges = [];
+    let isManualFlow = false;
+    let challengeStatus = { blink: 'pending', turn_left: 'pending', turn_right: 'pending' };
+
+    // Verify Geolocation
+    async function verifyLocation() {
+        return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) {
+                reject('Browser Anda tidak mendukung deteksi lokasi.');
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    try {
+                        geolocationCoords = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                        const response = await fetch('{{ route("absence.verify-location") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify(geolocationCoords)
+                        });
+                        const data = await response.json();
+                        resolve(data);
+                    } catch (err) {
+                        reject(err);
+                    }
+                },
+                async (error) => {
+                    // Send dummy coordinates to verify if geolocation is actually enabled in Settings
+                    try {
+                        const response = await fetch('{{ route("absence.verify-location") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({ latitude: 0, longitude: 0 })
+                        });
+                        const data = await response.json();
+                        if (data.status === 'allowed') {
+                            resolve(data); // Geolocation is disabled, so allow
+                        } else {
+                            reject('Akses lokasi diblokir atau tidak tersedia. Harap aktifkan GPS Anda.');
+                        }
+                    } catch (err) {
+                        reject('Akses lokasi diperlukan untuk menggunakan sistem ini.');
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        });
+    }
 
     // Start Camera
     async function startCamera() {
@@ -440,7 +542,7 @@
     }
 
     async function captureAndAnalyze() {
-        if (isProcessing) return;
+        if (isProcessing || livenessActive || isModalOpen) return;
 
         const context = canvas.getContext('2d');
         canvas.width = video.videoWidth;
@@ -474,7 +576,7 @@
             
             if (data.status === 'success') {
                 const now = Date.now();
-                if (isModalOpen) return;
+                if (isModalOpen || livenessActive) return;
 
                 if (data.already_attended) {
                     statusDisplay.innerHTML = '<i class="fas fa-check-double text-success"></i> <span>Anda Sudah Absen</span>';
@@ -486,7 +588,10 @@
 
                 if (currentName !== prevName || (now - lastProcessedTime > 15000)) {
                     detectedUserId = data.user_id;
-                    showConfirmation(data.name);
+                    detectedUser = data.name;
+                    isManualFlow = false;
+                    capturePhoto();
+                    startLivenessSequence();
                 } else {
                     statusDisplay.innerHTML = '<i class="fas fa-user-check text-success"></i> <span>Scan Complete</span>';
                 }
@@ -512,21 +617,139 @@
         lastCapturedImage = canvas.toDataURL('image/webp', 0.8);
     }
 
-    function showConfirmation(name) {
-        isModalOpen = true;
-        detectedUser = name;
-        capturePhoto();
-        document.getElementById('detected-name').innerText = name;
-        document.getElementById('confirm-modal').style.display = 'flex';
-        document.getElementById('detection-view').style.display = 'block';
-        document.getElementById('manual-search-section').style.display = 'none';
-        statusDisplay.innerHTML = '<i class="fas fa-pause-circle text-warning"></i> <span>Waiting for confirmation...</span>';
+    function startLivenessSequence() {
+        livenessActive = true;
+        challengeStatus = { blink: 'pending', turn_left: 'pending', turn_right: 'pending' };
+        remainingChallenges = ['blink', 'turn_left', 'turn_right'];
+        
+        // Shuffle the challenges to make it random
+        remainingChallenges.sort(() => Math.random() - 0.5);
+        
+        updateChallengeDots();
+        nextLivenessChallenge();
+    }
+
+    function nextLivenessChallenge() {
+        if (!livenessActive) return;
+
+        if (remainingChallenges.length === 0) {
+            // All challenges satisfied!
+            document.getElementById('liveness-overlay-card').style.display = 'none';
+            livenessActive = false;
+            
+            if (isManualFlow) {
+                // For manual flow, record attendance directly
+                recordAttendance(detectedUserId || detectedUser);
+                closeModal();
+            } else {
+                // Show confirmation modal
+                isModalOpen = true;
+                document.getElementById('detected-name').innerText = detectedUser;
+                document.getElementById('confirm-modal').style.display = 'flex';
+                document.getElementById('detection-view').style.display = 'block';
+                document.getElementById('manual-search-section').style.display = 'none';
+                document.getElementById('liveness-challenge').style.display = 'none';
+                statusDisplay.innerHTML = '<i class="fas fa-pause-circle text-warning"></i> <span>Waiting for confirmation...</span>';
+            }
+            return;
+        }
+
+        currentChallenge = remainingChallenges[0];
+        
+        const instructions = {
+            'blink': 'Silakan Kedipkan Mata Anda 👁️',
+            'turn_left': 'Silakan Tolehkan Kepala ke Kiri ⬅️',
+            'turn_right': 'Silakan Tolehkan Kepala ke Kanan ➡️'
+        };
+
+        document.getElementById('liveness-overlay-card').style.display = 'block';
+        document.getElementById('liveness-instruction').innerText = instructions[currentChallenge] || 'Silakan Kedipkan Mata Anda 👁️';
+        
+        updateChallengeDots();
+
+        livenessFrames = [];
+        let progress = 0;
+        const progressEl = document.getElementById('liveness-overlay-progress');
+        progressEl.style.width = '0%';
+
+        if (livenessInterval) clearInterval(livenessInterval);
+        livenessInterval = setInterval(async () => {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            livenessFrames.push(canvas.toDataURL('image/jpeg', 0.8));
+
+            progress += (100 / 15);
+            progressEl.style.width = Math.min(progress, 100) + '%';
+
+            if (livenessFrames.length >= 15) {
+                clearInterval(livenessInterval);
+                livenessInterval = null;
+                await verifyCurrentChallenge();
+            }
+        }, 200); // 15 frames in 3 seconds
+    }
+
+    async function verifyCurrentChallenge() {
+        statusDisplay.innerHTML = `<i class="fas fa-sync fa-spin text-accent"></i> <span>Verifying ${currentChallenge}...</span>`;
+        try {
+            const response = await fetch('{{ route("absence.liveness") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    frames: livenessFrames,
+                    challenge: currentChallenge
+                })
+            });
+
+            const data = await response.json();
+            if (data.status === 'passed') {
+                challengeStatus[currentChallenge] = 'passed';
+                remainingChallenges.shift();
+                showToast('Tantangan Lolos!', 'success');
+                nextLivenessChallenge();
+            } else {
+                showToast('Gagal: ' + (data.message || 'Aksi tidak terdeteksi. Silakan coba lagi.'), 'error');
+                // Retry same challenge
+                setTimeout(() => {
+                    nextLivenessChallenge();
+                }, 1500);
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Koneksi Liveness terputus. Mencoba lagi...', 'error');
+            setTimeout(() => {
+                nextLivenessChallenge();
+            }, 1500);
+        }
+    }
+
+    function updateChallengeDots() {
+        const challenges = ['blink', 'turn_left', 'turn_right'];
+        challenges.forEach(c => {
+            const el = document.getElementById('step-dot-' + c);
+            if (el) {
+                if (challengeStatus[c] === 'passed') {
+                    el.style.background = 'var(--success)';
+                    el.style.transform = 'scale(1.2)';
+                } else if (c === currentChallenge) {
+                    el.style.background = 'var(--accent)';
+                    el.style.transform = 'scale(1.4)';
+                } else {
+                    el.style.background = 'rgba(255, 255, 255, 0.3)';
+                    el.style.transform = 'scale(1)';
+                }
+            }
+        });
     }
 
     function confirmIdentity() {
         if (!detectedUserId && !detectedUser) return;
         
-        // Jika belum ada foto (karena absen manual), ambil foto sekarang (Autocapture)
         if (!lastCapturedImage) {
             capturePhoto();
         }
@@ -536,21 +759,33 @@
     }
 
     function closeModal() {
+        if (livenessInterval) {
+            clearInterval(livenessInterval);
+            livenessInterval = null;
+        }
         isModalOpen = false;
+        livenessActive = false;
+        isManualFlow = false;
         detectedUser = null;
         detectedUserId = null;
         lastCapturedImage = null;
+        challengeStatus = { blink: 'pending', turn_left: 'pending', turn_right: 'pending' };
+
         document.getElementById('confirm-modal').style.display = 'none';
+        document.getElementById('liveness-overlay-card').style.display = 'none';
         document.getElementById('user-search').value = '';
         document.getElementById('search-suggestions').style.display = 'none';
+        document.getElementById('liveness-challenge').style.display = 'none';
         statusDisplay.innerHTML = '<i class="fas fa-eye text-primary"></i> <span>Ready to Scan</span>';
     }
 
     function showManualSearch() {
         isModalOpen = true;
+        isManualFlow = true;
         document.getElementById('confirm-modal').style.display = 'flex';
         document.getElementById('detection-view').style.display = 'none';
         document.getElementById('manual-search-section').style.display = 'block';
+        document.getElementById('liveness-challenge').style.display = 'none';
         document.getElementById('user-search').focus();
         statusDisplay.innerHTML = '<i class="fas fa-keyboard text-accent"></i> <span>Manual Input Mode</span>';
     }
@@ -561,6 +796,7 @@
         } else {
             document.getElementById('detection-view').style.display = 'block';
             document.getElementById('manual-search-section').style.display = 'none';
+            document.getElementById('liveness-challenge').style.display = 'none';
         }
     }
 
@@ -607,7 +843,14 @@
     function selectUser(name) {
         detectedUser = name;
         detectedUserId = null; // Reset ID if manual search is used
-        confirmIdentity();
+        isManualFlow = true;
+        
+        // Hide the confirmation / manual search modal
+        document.getElementById('confirm-modal').style.display = 'none';
+        isModalOpen = false;
+        
+        capturePhoto();
+        startLivenessSequence();
     }
 
     async function recordAttendance(identity) {
@@ -615,6 +858,11 @@
             const body = typeof identity === 'number' 
                 ? { user_id: identity, image: lastCapturedImage } 
                 : { name: identity, image: lastCapturedImage };
+                
+            if (geolocationCoords) {
+                body.latitude = geolocationCoords.latitude;
+                body.longitude = geolocationCoords.longitude;
+            }
                 
             const response = await fetch('{{ route("absence.record") }}', {
                 method: 'POST',
@@ -659,7 +907,7 @@
                 const badgeClass = item.check_out ? 'badge-out' : 'badge-in';
                 
                 attendanceList.innerHTML += `
-                    <div class="attendance-item">
+                     <div class="attendance-item">
                         <div class="user-avatar">${initials}</div>
                         <div class="user-info">
                             <span class="user-name">${item.user.name}</span>
@@ -686,10 +934,13 @@
     }
 
     // Init
-    startCamera();
-    fetchAllUsers();
-    fetchRecentAttendance();
-    setInterval(fetchRecentAttendance, 30000); // Update list every 30s
+    async function init() {
+        startCamera();
+        fetchAllUsers();
+        fetchRecentAttendance();
+        setInterval(fetchRecentAttendance, 30000);
+    }
+    init();
 </script>
 
 </body>

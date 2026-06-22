@@ -169,9 +169,99 @@
         to { opacity: 1; transform: translateX(0); }
     }
 
+    .shift-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 8px;
+    }
+
+    .shift-tab {
+        padding: 10px 20px;
+        background: none;
+        border: none;
+        font-weight: 600;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border-radius: 8px;
+    }
+
+    .shift-tab:hover {
+        background: #f3f4f6;
+        color: #0d3b66;
+    }
+
+    .shift-tab.active {
+        background: #0d3b66;
+        color: white;
+    }
+
+    .shift-panel {
+        display: none;
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    .shift-panel.active {
+        display: block;
+    }
+
+    /* Switch Style */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 28px;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e1;
+        transition: .4s;
+        border-radius: 34px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+
+    input:checked + .slider {
+        background-color: #0d3b66;
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(22px);
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
     @media (max-width: 768px) {
         .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
         .btn-save { width: 100%; }
+        .shift-tabs { flex-direction: column; }
     }
 </style>
 
@@ -280,45 +370,185 @@
         </form>
     </div>
 
-    <!-- Section 2: Edit Absence Time -->
+    <!-- Section 2: Edit Absence Time (3 Shifts) -->
     <div class="settings-card">
-        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Edit Absence Time</h3>
+        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Edit Absence Time (3 Shifts)</h3>
+        
+        <div class="shift-tabs">
+            <button type="button" class="shift-tab active" id="shift-tab-1" onclick="showShift(1)">Shift 1 (Morning)</button>
+            <button type="button" class="shift-tab" id="shift-tab-2" onclick="showShift(2)">Shift 2 (Afternoon)</button>
+            <button type="button" class="shift-tab" id="shift-tab-3" onclick="showShift(3)">Shift 3 (Night)</button>
+        </div>
+
         <form method="POST" action="{{ route('settings.update.absence') }}">
             @csrf
             @method('PUT')
 
+            <!-- Shift 1 -->
+            <div class="shift-panel active" id="shift-panel-1">
+                <h5 class="mb-3 font-weight-bold" style="color: #475569;">Shift 1 Configuration</h5>
+                <div class="row g-4">
+                    <div class="col-md-3">
+                        <label for="shift_1_in_start" class="form-label-custom">Check-in Start Time</label>
+                        <input type="time" name="shift_1_in_start" id="shift_1_in_start" class="input-custom"
+                               value="{{ old('shift_1_in_start', $settings['shift_1_in_start']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_1_in_end" class="form-label-custom">Check-in Late Boundary</label>
+                        <input type="time" name="shift_1_in_end" id="shift_1_in_end" class="input-custom"
+                               value="{{ old('shift_1_in_end', $settings['shift_1_in_end']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_1_out_start" class="form-label-custom">Check-out Start Time</label>
+                        <input type="time" name="shift_1_out_start" id="shift_1_out_start" class="input-custom"
+                               value="{{ old('shift_1_out_start', $settings['shift_1_out_start']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_1_out_end" class="form-label-custom">Check-out End Time</label>
+                        <input type="time" name="shift_1_out_end" id="shift_1_out_end" class="input-custom"
+                               value="{{ old('shift_1_out_end', $settings['shift_1_out_end']) }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shift 2 -->
+            <div class="shift-panel" id="shift-panel-2">
+                <h5 class="mb-3 font-weight-bold" style="color: #475569;">Shift 2 Configuration</h5>
+                <div class="row g-4">
+                    <div class="col-md-3">
+                        <label for="shift_2_in_start" class="form-label-custom">Check-in Start Time</label>
+                        <input type="time" name="shift_2_in_start" id="shift_2_in_start" class="input-custom"
+                               value="{{ old('shift_2_in_start', $settings['shift_2_in_start']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_2_in_end" class="form-label-custom">Check-in Late Boundary</label>
+                        <input type="time" name="shift_2_in_end" id="shift_2_in_end" class="input-custom"
+                               value="{{ old('shift_2_in_end', $settings['shift_2_in_end']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_2_out_start" class="form-label-custom">Check-out Start Time</label>
+                        <input type="time" name="shift_2_out_start" id="shift_2_out_start" class="input-custom"
+                               value="{{ old('shift_2_out_start', $settings['shift_2_out_start']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_2_out_end" class="form-label-custom">Check-out End Time</label>
+                        <input type="time" name="shift_2_out_end" id="shift_2_out_end" class="input-custom"
+                               value="{{ old('shift_2_out_end', $settings['shift_2_out_end']) }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shift 3 -->
+            <div class="shift-panel" id="shift-panel-3">
+                <h5 class="mb-3 font-weight-bold" style="color: #475569;">Shift 3 Configuration</h5>
+                <div class="row g-4">
+                    <div class="col-md-3">
+                        <label for="shift_3_in_start" class="form-label-custom">Check-in Start Time</label>
+                        <input type="time" name="shift_3_in_start" id="shift_3_in_start" class="input-custom"
+                               value="{{ old('shift_3_in_start', $settings['shift_3_in_start']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_3_in_end" class="form-label-custom">Check-in Late Boundary</label>
+                        <input type="time" name="shift_3_in_end" id="shift_3_in_end" class="input-custom"
+                               value="{{ old('shift_3_in_end', $settings['shift_3_in_end']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_3_out_start" class="form-label-custom">Check-out Start Time</label>
+                        <input type="time" name="shift_3_out_start" id="shift_3_out_start" class="input-custom"
+                               value="{{ old('shift_3_out_start', $settings['shift_3_out_start']) }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="shift_3_out_end" class="form-label-custom">Check-out End Time</label>
+                        <input type="time" name="shift_3_out_end" id="shift_3_out_end" class="input-custom"
+                               value="{{ old('shift_3_out_end', $settings['shift_3_out_end']) }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 text-end mt-4">
+                <button type="submit" class="btn-save">
+                    <i class="fas fa-clock me-2"></i> Save Shift Times
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Section 3: Geolocation Settings -->
+    <div class="settings-card">
+        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Geolocation Settings</h3>
+        <form method="POST" action="{{ route('settings.update.geolocation') }}">
+            @csrf
+            @method('PUT')
+
             <div class="row g-4">
-                <div class="col-md-6">
-                    <label for="attendance_in_start" class="form-label-custom">Check-in Start Time</label>
-                    <input type="time" name="attendance_in_start" id="attendance_in_start" class="input-custom"
-                           value="{{ old('attendance_in_start', $settings['attendance_in_start']) }}">
+                <div class="col-12 d-flex align-items-center gap-3 mb-2">
+                    <label class="switch">
+                        <input type="hidden" name="geolocation_enabled" value="0">
+                        <input type="checkbox" name="geolocation_enabled" value="1" id="geolocation_enabled" 
+                               {{ old('geolocation_enabled', $settings['geolocation_enabled']) == '1' ? 'checked' : '' }}>
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <strong style="color: #0d3b66; font-size: 15px; display: block;">Enable Geolocation Verification</strong>
+                        <span style="color: #64748b; font-size: 13px;">Require users to be at the office location to perform attendance scanning.</span>
+                    </div>
                 </div>
 
-                <div class="col-md-6">
-                    <label for="attendance_in_end" class="form-label-custom">Check-in Late Boundary</label>
-                    <input type="time" name="attendance_in_end" id="attendance_in_end" class="input-custom"
-                           value="{{ old('attendance_in_end', $settings['attendance_in_end']) }}">
+                <div class="col-md-4">
+                    <label for="office_latitude" class="form-label-custom">Office Latitude</label>
+                    <input type="number" step="0.000001" name="office_latitude" id="office_latitude" class="input-custom"
+                           value="{{ old('office_latitude', $settings['office_latitude']) }}" placeholder="e.g. -6.200000">
                 </div>
 
-                <div class="col-md-6">
-                    <label for="attendance_out_start" class="form-label-custom">Check-out Start Time</label>
-                    <input type="time" name="attendance_out_start" id="attendance_out_start" class="input-custom"
-                           value="{{ old('attendance_out_start', $settings['attendance_out_start']) }}">
+                <div class="col-md-4">
+                    <label for="office_longitude" class="form-label-custom">Office Longitude</label>
+                    <input type="number" step="0.000001" name="office_longitude" id="office_longitude" class="input-custom"
+                           value="{{ old('office_longitude', $settings['office_longitude']) }}" placeholder="e.g. 106.816666">
                 </div>
 
-                <div class="col-md-6">
-                    <label for="attendance_out_end" class="form-label-custom">Check-out End Time</label>
-                    <input type="time" name="attendance_out_end" id="attendance_out_end" class="input-custom"
-                           value="{{ old('attendance_out_end', $settings['attendance_out_end']) }}">
+                <div class="col-md-4">
+                    <label for="office_radius" class="form-label-custom">Allowed Radius (meters)</label>
+                    <input type="number" name="office_radius" id="office_radius" class="input-custom"
+                           value="{{ old('office_radius', $settings['office_radius']) }}" placeholder="e.g. 100">
+                </div>
+
+                <div class="col-12 mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="getCurrentLocation()" style="border: 2px solid #cbd5e1; border-radius: 8px; padding: 8px 16px; font-weight: 600; cursor: pointer; background: white; transition: all 0.2s;">
+                        <i class="fas fa-map-marker-alt me-1"></i> Detect My Coordinates
+                    </button>
                 </div>
 
                 <div class="col-12 text-end mt-4">
                     <button type="submit" class="btn-save">
-                        <i class="fas fa-clock me-2"></i> Save Absence Times
+                        <i class="fas fa-map-marked-alt me-2"></i> Save Geolocation Settings
                     </button>
                 </div>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+    function showShift(num) {
+        document.querySelectorAll('.shift-tab').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.shift-panel').forEach(panel => panel.classList.remove('active'));
+        
+        document.getElementById('shift-tab-' + num).classList.add('active');
+        document.getElementById('shift-panel-' + num).classList.add('active');
+    }
+
+    function getCurrentLocation() {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser.');
+            return;
+        }
+        alert('Requesting location permissions...');
+        navigator.geolocation.getCurrentPosition(function(position) {
+            document.getElementById('office_latitude').value = position.coords.latitude.toFixed(6);
+            document.getElementById('office_longitude').value = position.coords.longitude.toFixed(6);
+        }, function(error) {
+            alert('Error getting location: ' + error.message);
+        }, { enableHighAccuracy: true });
+    }
+</script>
 @endsection

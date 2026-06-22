@@ -17,25 +17,92 @@ class AbsenceController extends Controller
         return view('absence');
     }
 
+    private function getActiveShiftDetails($now)
+    {
+        $settings = Setting::pluck('value', 'key')->toArray();
+
+        // Build shifts array
+        $shifts = [];
+        for ($i = 1; $i <= 3; $i++) {
+            $shifts[$i] = [
+                'in_start' => $settings["shift_{$i}_in_start"] ?? null,
+                'in_end' => $settings["shift_{$i}_in_end"] ?? null,
+                'out_start' => $settings["shift_{$i}_out_start"] ?? null,
+                'out_end' => $settings["shift_{$i}_out_end"] ?? null,
+            ];
+        }
+
+        // Fallback: use old keys if shift 1 keys don't exist
+        if (empty($shifts[1]['in_start'])) {
+            $shifts[1] = [
+                'in_start' => $settings['attendance_in_start'] ?? '07:00',
+                'in_end' => $settings['attendance_in_end'] ?? '09:00',
+                'out_start' => $settings['attendance_out_start'] ?? '16:00',
+                'out_end' => $settings['attendance_out_end'] ?? '18:00',
+            ];
+        }
+
+        $compareTime = $now->format('H:i');
+        $activeShift = null;
+
+        foreach ($shifts as $num => $shift) {
+            if (!$shift['in_start']) continue;
+
+            $inStart = $shift['in_start'];
+            $outEnd = $shift['out_end'];
+
+            // Handle midnight-spanning shifts
+            if ($outEnd < $inStart) {
+                if ($compareTime >= $inStart || $compareTime <= $outEnd) {
+                    $activeShift = $num;
+                    break;
+                }
+            } else {
+                if ($compareTime >= $inStart && $compareTime <= $outEnd) {
+                    $activeShift = $num;
+                    break;
+                }
+            }
+        }
+
+        if (!$activeShift) {
+            return null;
+        }
+
+        return array_merge($shifts[$activeShift], ['shift_number' => $activeShift]);
+    }
+
     public function proxyAnalyze(Request $request)
     {
         try {
-            // Cache user embeddings for 10 minutes to reduce DB load
+            // Cache user embeddings (registration + 5 recent references) to reduce DB load
             $users = Cache::remember('user_face_embeddings', 600, function() {
                 return User::whereNotNull('face_embedding')
                     ->select('id', 'name', 'face_embedding')
+                    ->with(['faceReferences' => function($query) {
+                        $query->orderBy('created_at', 'desc')->limit(5);
+                    }])
                     ->get()
                     ->map(function($user) {
+                        $allEmbeddings = [];
+                        if ($user->face_embedding) {
+                            $allEmbeddings[] = $user->face_embedding;
+                        }
+                        foreach ($user->faceReferences as $ref) {
+                            if ($ref->embedding) {
+                                $allEmbeddings[] = $ref->embedding;
+                            }
+                        }
                         return [
                             'id' => $user->id,
                             'name' => $user->name,
-                            'embedding' => $user->face_embedding
+                            'embeddings' => $allEmbeddings,
                         ];
                     });
             });
 
-            // Proxy the request to AI Server with 10s timeout
-            $response = Http::timeout(10)->post('http://127.0.0.1:5000/analyze', [
+            // Proxy the request to AI Server with 30s timeout
+            $response = Http::timeout(30)->post('http://127.0.0.1:5000/analyze', [
                 'image' => $request->image,
                 'user_embeddings' => $users
             ]);
@@ -48,11 +115,10 @@ class AbsenceController extends Controller
                 if ($detectedUser) {
                     $now = Carbon::now('Asia/Jakarta');
                     $today = $now->toDateString();
-                    $currentTime = $now->format('H:i'); // Consistent with record()
+                    $currentTime = $now->format('H:i');
                     
-                    // Fetch settings to know current session
-                    $settings = Setting::pluck('value', 'key')->toArray();
-                    $outStart = $settings['attendance_out_start'] ?? '16:00';
+                    $shift = $this->getActiveShiftDetails($now);
+                    $outStart = $shift ? $shift['out_start'] : '16:00';
                     
                     $attendance = Attendance::where('user_id', $detectedUser->id)->where('date', $today)->first();
                     
@@ -83,6 +149,8 @@ class AbsenceController extends Controller
         $request->validate([
             'user_id' => 'required_without:name|integer',
             'name' => 'required_without:user_id|string',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
         ]);
 
         if ($request->user_id) {
@@ -101,16 +169,20 @@ class AbsenceController extends Controller
         $now = Carbon::now('Asia/Jakarta');
         $today = $now->toDateString();
         $currentTime = $now->format('H:i:s');
-
-        // Fetch settings
-        $settings = Setting::pluck('value', 'key')->toArray();
-        $inStart = $settings['attendance_in_start'] ?? '07:00';
-        $inEnd = $settings['attendance_in_end'] ?? '09:00';
-        $outStart = $settings['attendance_out_start'] ?? '16:00';
-        $outEnd = $settings['attendance_out_end'] ?? '18:00';
-
-        // Simplify time for comparison (H:i)
         $compareTime = $now->format('H:i');
+
+        $shift = $this->getActiveShiftDetails($now);
+        if (!$shift) {
+            return response()->json([
+                'status' => 'outside_hours',
+                'message' => "Diluar jadwal operasional. [Sekarang: $compareTime]"
+            ]);
+        }
+
+        $inStart = $shift['in_start'];
+        $inEnd = $shift['in_end'];
+        $outStart = $shift['out_start'];
+        $outEnd = $shift['out_end'];
 
         // Find existing or create new attendance record for today
         $attendance = Attendance::firstOrCreate(
@@ -121,13 +193,15 @@ class AbsenceController extends Controller
         $status = '';
         $message = '';
 
-        // 1. Check-in Logic (Jendela Masuk: inStart s/d outStart)
+        // Check-in vs Check-out
         if ($compareTime >= $inStart && $compareTime < $outStart) {
             if (!$attendance->check_in) {
                 $finalStatus = ($compareTime <= $inEnd) ? 'present' : 'late';
                 $attendance->update([
                     'check_in' => $currentTime,
-                    'status' => $finalStatus
+                    'status' => $finalStatus,
+                    'latitude' => $request->latitude,
+                    'longitude' => $request->longitude,
                 ]);
                 
                 $status = 'check-in';
@@ -138,10 +212,7 @@ class AbsenceController extends Controller
                 $status = 'already';
                 $message = $user->name . ' sudah melakukan check-in.';
             }
-        } 
-        // 2. Check-out Logic (Jendela Pulang: outStart s/d outEnd)
-        // Handle midnight span (e.g., 16:00 to 00:00)
-        else {
+        } else {
             $isCheckoutTime = ($outEnd < $outStart) 
                 ? ($compareTime >= $outStart || $compareTime <= $outEnd)
                 : ($compareTime >= $outStart && $compareTime <= $outEnd);
@@ -155,16 +226,18 @@ class AbsenceController extends Controller
                 }
 
                 if (!$attendance->check_out) {
-                    $attendance->update(['check_out' => $currentTime]);
+                    $attendance->update([
+                        'check_out' => $currentTime,
+                        'latitude' => $request->latitude ?? $attendance->latitude,
+                        'longitude' => $request->longitude ?? $attendance->longitude,
+                    ]);
                     $status = 'check-out';
                     $message = 'Check-out berhasil untuk ' . $user->name . '. Selamat beristirahat!';
                 } else {
                     $status = 'already';
                     $message = $user->name . ' sudah melakukan check-out.';
                 }
-            } 
-            // 3. Diluar Jam Kerja
-            else {
+            } else {
                 if ($compareTime < $inStart) {
                     $errMessage = "Belum masuk jam absensi. (Mulai: $inStart)";
                 } elseif ($compareTime >= $outEnd && $outEnd > $outStart) {
@@ -181,6 +254,7 @@ class AbsenceController extends Controller
         }
 
         // Simpan foto bukti jika ada
+        $imagePath = null;
         if ($request->filled('image')) {
             $image = $request->image; // Base64 string
             $image = str_replace('data:image/webp;base64,', '', $image);
@@ -193,6 +267,43 @@ class AbsenceController extends Controller
             $attendance->update(['image' => $imagePath]);
         }
 
+        // Extract face embedding from attendance photo and save as reference
+        if ($request->filled('image') && $user && in_array($status, ['check-in', 'check-out'])) {
+            try {
+                $embeddingResponse = Http::timeout(15)->post('http://127.0.0.1:5000/represent', [
+                    'image' => $request->image,
+                ]);
+
+                if ($embeddingResponse->successful() && isset($embeddingResponse->json()['embedding'])) {
+                    $source = $request->user_id ? 'ai_attendance' : 'manual_attendance';
+                    // Save as face reference
+                    \App\Models\FaceReference::create([
+                        'user_id' => $user->id,
+                        'embedding' => $embeddingResponse->json()['embedding'],
+                        'source' => $source,
+                        'image_path' => $imagePath,
+                    ]);
+
+                    // Prune: keep only the 5 most recent references per user
+                    $oldRefs = \App\Models\FaceReference::where('user_id', $user->id)
+                        ->orderBy('created_at', 'desc')
+                        ->skip(5)
+                        ->take(100)
+                        ->pluck('id');
+
+                    if ($oldRefs->isNotEmpty()) {
+                        \App\Models\FaceReference::whereIn('id', $oldRefs)->delete();
+                    }
+
+                    // Clear the embedding cache so next scan uses updated data
+                    Cache::forget('user_face_embeddings');
+                }
+            } catch (\Exception $e) {
+                \Log::warning("Face reference extraction failed: " . $e->getMessage());
+                // Non-critical — don't fail the attendance recording
+            }
+        }
+
         return response()->json([
             'status' => 'success',
             'type' => $status,
@@ -200,6 +311,63 @@ class AbsenceController extends Controller
             'user' => $user->name,
             'time' => $currentTime
         ]);
+    }
+
+    public function verifyGeolocation(Request $request)
+    {
+        $request->validate([
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+        ]);
+
+        $settings = Setting::pluck('value', 'key')->toArray();
+
+        // If geolocation is disabled, always allow
+        if (empty($settings['geolocation_enabled']) || $settings['geolocation_enabled'] == '0') {
+            return response()->json(['status' => 'allowed', 'message' => 'Geolocation check is disabled.']);
+        }
+
+        $officeLat = (float)($settings['office_latitude'] ?? 0);
+        $officeLng = (float)($settings['office_longitude'] ?? 0);
+        $maxRadius = (int)($settings['office_radius'] ?? 100);
+
+        // Haversine formula to calculate distance in meters
+        $earthRadius = 6371000; // meters
+        $dLat = deg2rad($request->latitude - $officeLat);
+        $dLng = deg2rad($request->longitude - $officeLng);
+        $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($officeLat)) * cos(deg2rad($request->latitude)) * sin($dLng/2) * sin($dLng/2);
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+        $distance = $earthRadius * $c;
+
+        if ($distance <= $maxRadius) {
+            return response()->json([
+                'status' => 'allowed',
+                'distance' => round($distance),
+                'message' => 'You are within office range.'
+            ]);
+        } else {
+            return response()->json([
+                'status' => 'denied',
+                'distance' => round($distance),
+                'message' => "You are " . round($distance) . "m away from office. Maximum allowed: {$maxRadius}m."
+            ]);
+        }
+    }
+
+    public function proxyLiveness(Request $request)
+    {
+        try {
+            $response = Http::timeout(15)->post('http://127.0.0.1:5000/liveness', [
+                'frames' => $request->frames,
+                'challenge' => $request->challenge,
+            ]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Liveness Proxy Error: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function getRecent()

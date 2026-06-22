@@ -116,11 +116,12 @@
                                 </div>
 
                                 <div class="mt-4">
-                                    <button type="submit" class="btn btn-login w-100 py-2 shadow-sm">
+                                    <button type="submit" id="btn-submit-login" class="btn btn-login w-100 py-2 shadow-sm">
                                         {{ __('Login') }}
                                     </button>
                                 </div>
                             </form>
+                            <div id="geolocation-status" class="mt-3 text-center text-danger small fw-bold" style="display: none;"></div>
                         </div>
                     </div>
                 </div>
@@ -128,4 +129,121 @@
         </div>
     </div>
 </div>
+
+<script>
+    const loginForm = document.querySelector('form');
+    const btnSubmit = document.getElementById('btn-submit-login');
+    const btnAbsence = document.querySelector('.btn-absence');
+    const statusDiv = document.getElementById('geolocation-status');
+
+    function getCoordinates() {
+        return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) {
+                reject('Browser Anda tidak mendukung deteksi lokasi.');
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve({
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    });
+                },
+                (error) => {
+                    let msg = 'Gagal mendeteksi lokasi.';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        msg = 'Akses lokasi ditolak. Silakan izinkan lokasi di browser Anda.';
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        msg = 'Informasi lokasi tidak tersedia.';
+                    } else if (error.code === error.TIMEOUT) {
+                        msg = 'Deteksi lokasi timeout.';
+                    }
+                    reject(msg);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        });
+    }
+
+    async function checkLocation(coords) {
+        const response = await fetch('{{ route("absence.verify-location") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(coords)
+        });
+        return await response.json();
+    }
+
+    // Intercept Login Form Submit
+    loginForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // UI Loading State
+        btnSubmit.disabled = true;
+        const originalText = btnSubmit.innerText;
+        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Memverifikasi Lokasi...';
+        statusDiv.style.display = 'none';
+
+        try {
+            const coords = await getCoordinates();
+            const result = await checkLocation(coords);
+
+            if (result.status === 'allowed') {
+                // If coordinates verified, append to form and submit
+                let latInput = document.createElement('input');
+                latInput.type = 'hidden';
+                latInput.name = 'latitude';
+                latInput.value = coords.latitude;
+                loginForm.appendChild(latInput);
+
+                let lngInput = document.createElement('input');
+                lngInput.type = 'hidden';
+                lngInput.name = 'longitude';
+                lngInput.value = coords.longitude;
+                loginForm.appendChild(lngInput);
+
+                loginForm.submit();
+            } else {
+                statusDiv.innerText = result.message || 'Anda berada di luar jangkauan kantor.';
+                statusDiv.style.display = 'block';
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = originalText;
+            }
+        } catch (error) {
+            statusDiv.innerText = error;
+            statusDiv.style.display = 'block';
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = originalText;
+        }
+    });
+
+    // Intercept AI System Button Click
+    btnAbsence.addEventListener('click', async function(e) {
+        e.preventDefault();
+        
+        const originalText = btnAbsence.innerHTML;
+        btnAbsence.style.pointerEvents = 'none';
+        btnAbsence.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking Location...';
+
+        try {
+            const coords = await getCoordinates();
+            const result = await checkLocation(coords);
+
+            if (result.status === 'allowed') {
+                window.location.href = btnAbsence.href;
+            } else {
+                alert(result.message || 'Anda berada di luar jangkauan kantor.');
+                btnAbsence.style.pointerEvents = 'auto';
+                btnAbsence.innerHTML = originalText;
+            }
+        } catch (error) {
+            alert('Akses lokasi diperlukan: ' + error);
+            btnAbsence.style.pointerEvents = 'auto';
+            btnAbsence.innerHTML = originalText;
+        }
+    });
+</script>
 @endsection

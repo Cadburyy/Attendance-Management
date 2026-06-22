@@ -22,6 +22,8 @@ class Attendance extends Model
         'requested_check_out',
         'override_reason',
         'image',
+        'latitude',
+        'longitude',
     ];
 
     protected $casts = [
