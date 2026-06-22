@@ -345,18 +345,24 @@
                 <div id="liveness-overlay-progress" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.2s linear;"></div>
             </div>
             <div id="liveness-steps-indicator" style="display: flex; justify-content: center; gap: 12px; margin-top: 10px;">
+                @if(($settings['liveness_blink'] ?? '1') == '1')
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <span id="step-dot-blink" style="width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: all 0.3s; display: inline-block;"></span>
                     <span style="font-size: 9px; color: rgba(255, 255, 255, 0.6);">Kedip</span>
                 </div>
+                @endif
+                @if(($settings['liveness_turn_left'] ?? '1') == '1')
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <span id="step-dot-turn_left" style="width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: all 0.3s; display: inline-block;"></span>
                     <span style="font-size: 9px; color: rgba(255, 255, 255, 0.6);">Kiri</span>
                 </div>
+                @endif
+                @if(($settings['liveness_turn_right'] ?? '1') == '1')
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <span id="step-dot-turn_right" style="width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: all 0.3s; display: inline-block;"></span>
                     <span style="font-size: 9px; color: rgba(255, 255, 255, 0.6);">Kanan</span>
                 </div>
+                @endif
             </div>
         </div>
     </div>
@@ -446,12 +452,16 @@
     let currentAbortController = null;
 
     // Liveness Detection Variables
+    const livenessEnabled = {{ ($settings['liveness_enabled'] ?? '1') == '1' ? 'true' : 'false' }};
+    const livenessBlink = {{ ($settings['liveness_blink'] ?? '1') == '1' ? 'true' : 'false' }};
+    const livenessTurnLeft = {{ ($settings['liveness_turn_left'] ?? '1') == '1' ? 'true' : 'false' }};
+    const livenessTurnRight = {{ ($settings['liveness_turn_right'] ?? '1') == '1' ? 'true' : 'false' }};
+
     let livenessFrames = [];
     let livenessInterval = null;
     let currentChallenge = null;
     let geolocationCoords = null; // Store coords for attendance record
-
-    // Parallel Liveness state variables
+    
     let livenessActive = false;
     let remainingChallenges = [];
     let isManualFlow = false;
@@ -618,9 +628,55 @@
     }
 
     function startLivenessSequence() {
+        if (!livenessEnabled) {
+            if (isManualFlow) {
+                recordAttendance(detectedUserId || detectedUser);
+                closeModal();
+            } else {
+                isModalOpen = true;
+                document.getElementById('detected-name').innerText = detectedUser;
+                document.getElementById('confirm-modal').style.display = 'flex';
+                document.getElementById('detection-view').style.display = 'block';
+                document.getElementById('manual-search-section').style.display = 'none';
+                document.getElementById('liveness-challenge').style.display = 'none';
+                statusDisplay.innerHTML = '<i class="fas fa-pause-circle text-warning"></i> <span>Waiting for confirmation...</span>';
+            }
+            return;
+        }
+
+        remainingChallenges = [];
+        challengeStatus = {};
+        
+        if (livenessBlink) {
+            remainingChallenges.push('blink');
+            challengeStatus.blink = 'pending';
+        }
+        if (livenessTurnLeft) {
+            remainingChallenges.push('turn_left');
+            challengeStatus.turn_left = 'pending';
+        }
+        if (livenessTurnRight) {
+            remainingChallenges.push('turn_right');
+            challengeStatus.turn_right = 'pending';
+        }
+
+        if (remainingChallenges.length === 0) {
+            if (isManualFlow) {
+                recordAttendance(detectedUserId || detectedUser);
+                closeModal();
+            } else {
+                isModalOpen = true;
+                document.getElementById('detected-name').innerText = detectedUser;
+                document.getElementById('confirm-modal').style.display = 'flex';
+                document.getElementById('detection-view').style.display = 'block';
+                document.getElementById('manual-search-section').style.display = 'none';
+                document.getElementById('liveness-challenge').style.display = 'none';
+                statusDisplay.innerHTML = '<i class="fas fa-pause-circle text-warning"></i> <span>Waiting for confirmation...</span>';
+            }
+            return;
+        }
+
         livenessActive = true;
-        challengeStatus = { blink: 'pending', turn_left: 'pending', turn_right: 'pending' };
-        remainingChallenges = ['blink', 'turn_left', 'turn_right'];
         
         // Shuffle the challenges to make it random
         remainingChallenges.sort(() => Math.random() - 0.5);

@@ -92,7 +92,7 @@
                     @foreach ($roles as $value => $label)
                         @if(!(Auth::user()->hasRole('HR') && $value === 'AdminIT'))
                             <label class="role-card-wrapper">
-                                <input type="checkbox" name="roles[]" value="{{ $value }}" class="role-checkbox" {{ is_array(old('roles')) && in_array($value, old('roles')) ? 'checked' : '' }}>
+                                <input type="radio" name="roles[]" value="{{ $value }}" class="role-checkbox" {{ is_array(old('roles')) && in_array($value, old('roles')) ? 'checked' : '' }}>
                                 <div class="role-card">
                                     <div class="role-card-icon">
                                         @if($value === 'AdminIT')

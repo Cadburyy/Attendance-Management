@@ -43,33 +43,80 @@ class LoginController extends Controller
     }
 
     /**
+     * Helper to verify geolocation during login
+     */
+    private function verifyLoginGeolocation(Request $request, $user)
+    {
+        // AdminIT is ALWAYS exempt from geolocation checks to prevent lockouts
+        if ($user->hasRole('AdminIT') || $user->role === 'AdminIT') {
+            return true;
+        }
+
+        $settings = \App\Models\Setting::pluck('value', 'key')->toArray();
+
+        // If geolocation is disabled, allow
+        if (empty($settings['geolocation_enabled']) || $settings['geolocation_enabled'] == '0') {
+            return true;
+        }
+
+        $latitude = $request->input('latitude');
+        $longitude = $request->input('longitude');
+
+        if (!$latitude || !$longitude) {
+            // Geolocation is enabled but coordinates weren't supplied/blocked
+            return false;
+        }
+
+        $officeLat = (float)($settings['office_latitude'] ?? 0);
+        $officeLng = (float)($settings['office_longitude'] ?? 0);
+        $maxRadius = (int)($settings['office_radius'] ?? 100);
+
+        // Haversine formula to calculate distance in meters
+        $earthRadius = 6371000; // meters
+        $dLat = deg2rad($latitude - $officeLat);
+        $dLng = deg2rad($longitude - $officeLng);
+        $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($officeLat)) * cos(deg2rad($latitude)) * sin($dLng/2) * sin($dLng/2);
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+        $distance = $earthRadius * $c;
+
+        return ($distance <= $maxRadius);
+    }
+
+    /**
      * ADJUSTED: Logic to handle OTP after successful password check
      */
     protected function authenticated(Request $request, $user)
     {
-        // 1. Only AdminIT and HR are subject to OTP check
-        if (in_array($user->role, ['AdminIT', 'HR'])) {
+        // 1. Verify Geolocation (Exempt AdminIT)
+        if (!$this->verifyLoginGeolocation($request, $user)) {
+            Auth::logout();
+            return redirect()->back()
+                ->withInput($request->only('name', 'remember'))
+                ->withErrors(['name' => 'Login ditolak: Anda berada di luar jangkauan lokasi kantor.']);
+        }
+
+        // 2. Only AdminIT and HR are subject to OTP check
+        if (in_array($user->role, ['AdminIT', 'HR']) || $user->hasRole('AdminIT') || $user->hasRole('HR')) {
             
-            // 2. Check the Working Hours feature
+            // 3. Check the Working Hours feature
             if ($this->isOutsideWorkingHours()) {
                 
-                // 3. Generate & Save OTP to Database
-               // Inside LoginController.php -> authenticated method
-$otp = rand(100000, 999999);
-$user->otp_code = $otp;
+                // 4. Generate & Save OTP to Database
+                $otp = rand(100000, 999999);
+                $user->otp_code = $otp;
 
-// NIST REQUIREMENT: 5 Minutes max
-$user->otp_expires_at = now()->addMinutes(5); 
-$user->save();
+                // NIST REQUIREMENT: 5 Minutes max
+                $user->otp_expires_at = now()->addMinutes(5); 
+                $user->save();
 
-Mail::to($user->email)->send(new SendOtpMail($otp));
+                Mail::to($user->email)->send(new SendOtpMail($otp));
 
-$userId = $user->id;
-Auth::logout();
+                $userId = $user->id;
+                Auth::logout();
 
-// Set the cookie to also expire in 5 minutes to match
-return redirect()->route('otp.verify')
-    ->withCookie(cookie('otp_user_id', $userId, 5));
+                // Set the cookie to also expire in 5 minutes to match
+                return redirect()->route('otp.verify')
+                    ->withCookie(cookie('otp_user_id', $userId, 5));
             }
         }
 

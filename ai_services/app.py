@@ -43,7 +43,7 @@ CORS(app)
 # CONFIG / SETTINGS
 # ============================================
 # TRIAL MODE: Set to True to skip uniform detection (face-only mode), or False to enable it.
-TRIAL_MODE = True
+TRIAL_MODE = False
 if TRIAL_MODE:
     print("⚠️  TRIAL MODE ACTIVE: Uniform detection is DISABLED. Face-only mode.")
 
@@ -229,28 +229,7 @@ def analyze():
         if frame is None:
             return jsonify({'error': 'Invalid image'}), 400
 
-        # 1. YOLO Deteksi Pakaian dengan Filter Hari (skip in TRIAL_MODE or on Fridays)
-        hari_angka = datetime.now().weekday()
-        is_friday = (hari_angka == 4)
-
-        if not TRIAL_MODE and not is_friday:
-            results = model.predict(source=frame, conf=0.67, verbose=False)
-            pakaian_terdeteksi = False
-            
-            for result in results:
-                for box in result.boxes:
-                    cls_id = int(box.cls[0])
-                    if cls_id == 0:
-                        pakaian_terdeteksi = True
-                        break
-                if pakaian_terdeteksi: break
-
-            if not pakaian_terdeteksi:
-                hari_nama = datetime.now().strftime('%A')
-                return jsonify({'status': 'no_uniform', 'message': f'Uniform not valid for {hari_nama}'})
-
-        # 2. Face Recognition via Embeddings
-        # Get target embedding
+        # 1. Face Recognition via Embeddings
         try:
             target_rep = DeepFace.represent(img_path=frame, model_name="ArcFace", 
                                            enforce_detection=False, detector_backend='retinaface')
@@ -287,15 +266,35 @@ def analyze():
                     best_match = user['name']
                     best_match_id = user.get('id')
 
-        if best_match and min_dist < threshold:
-            return jsonify({
-                'status': 'success', 
-                'name': best_match.upper(),
-                'user_id': best_match_id,
-                'message': f'Welcome, {best_match}'
-            })
-        else:
+        if not best_match or min_dist >= threshold:
             return jsonify({'status': 'unknown', 'message': 'Face unknown'})
+
+        # 2. YOLO Deteksi Pakaian dengan Filter Hari (skip in TRIAL_MODE or on Fridays)
+        has_uniform = True
+        hari_angka = datetime.now().weekday()
+        is_friday = (hari_angka == 4)
+
+        if not TRIAL_MODE and not is_friday:
+            results = model.predict(source=frame, conf=0.67, verbose=False)
+            pakaian_terdeteksi = False
+            
+            for result in results:
+                for box in result.boxes:
+                    cls_id = int(box.cls[0])
+                    if cls_id == 0:
+                        pakaian_terdeteksi = True
+                        break
+                if pakaian_terdeteksi: break
+
+            has_uniform = pakaian_terdeteksi
+
+        return jsonify({
+            'status': 'success', 
+            'name': best_match.upper(),
+            'user_id': best_match_id,
+            'has_uniform': has_uniform,
+            'message': f'Welcome, {best_match}'
+        })
 
     except Exception as e:
         print(f"Error: {str(e)}")

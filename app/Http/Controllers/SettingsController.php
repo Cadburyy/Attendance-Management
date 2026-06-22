@@ -11,7 +11,7 @@ class SettingsController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:setting', ['only' => ['index', 'updateAppearance', 'updateAbsenceTime', 'updateGeolocation']]);
+        $this->middleware('permission:setting', ['only' => ['index', 'updateAppearance', 'updateAbsenceTime', 'updateGeolocation', 'updateLiveness']]);
     }
 
     public function index()
@@ -42,6 +42,11 @@ class SettingsController extends Controller
             'office_longitude' => '106.816666',
             'office_radius' => '100',
             'geolocation_enabled' => '0',
+            // Liveness settings
+            'liveness_enabled' => '1',
+            'liveness_blink' => '1',
+            'liveness_turn_left' => '1',
+            'liveness_turn_right' => '1',
         ];
 
         $settings = array_merge($defaults, $settings);
@@ -126,6 +131,25 @@ class SettingsController extends Controller
         cache()->forget('app_settings');
 
         return redirect()->route('settings.index')->with('success', 'Geolocation settings updated successfully!');
+    }
+
+    public function updateLiveness(Request $request)
+    {
+        $request->validate([
+            'liveness_enabled' => 'required|boolean',
+            'liveness_blink' => 'required|boolean',
+            'liveness_turn_left' => 'required|boolean',
+            'liveness_turn_right' => 'required|boolean',
+        ]);
+
+        $this->putSetting('liveness_enabled', $request->liveness_enabled);
+        $this->putSetting('liveness_blink', $request->liveness_blink);
+        $this->putSetting('liveness_turn_left', $request->liveness_turn_left);
+        $this->putSetting('liveness_turn_right', $request->liveness_turn_right);
+
+        cache()->forget('app_settings');
+
+        return redirect()->route('settings.index')->with('success', 'Liveness settings updated successfully!');
     }
 
     protected function putSetting(string $key, $value): void

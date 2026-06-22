@@ -526,9 +526,105 @@
             </div>
         </form>
     </div>
+
+    <!-- Section 4: Liveness Settings -->
+    <div class="settings-card mt-4">
+        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Liveness Detection Settings</h3>
+        <form method="POST" action="{{ route('settings.update.liveness') }}">
+            @csrf
+            @method('PUT')
+
+            <div class="row g-4">
+                <div class="col-12 d-flex align-items-center gap-3 mb-2">
+                    <label class="switch">
+                        <input type="hidden" name="liveness_enabled" value="0">
+                        <input type="checkbox" name="liveness_enabled" value="1" id="liveness_enabled" 
+                               {{ old('liveness_enabled', $settings['liveness_enabled']) == '1' ? 'checked' : '' }}>
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <strong style="color: #0d3b66; font-size: 15px; display: block;">Enable Liveness Verification</strong>
+                        <span style="color: #64748b; font-size: 13px;">Require users to complete eye blink or head turn verification challenges before recording attendance.</span>
+                    </div>
+                </div>
+
+                <div class="col-12 liveness-sub-settings" style="padding-left: 20px; transition: opacity 0.3s;">
+                    <h5 class="mb-3" style="font-weight: 600; color: #0d3b66; font-size: 14px;">Active Liveness Challenges</h5>
+                    
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <label class="switch">
+                                <input type="hidden" name="liveness_blink" value="0">
+                                <input type="checkbox" name="liveness_blink" value="1" class="liveness-challenge-toggle"
+                                       {{ old('liveness_blink', $settings['liveness_blink']) == '1' ? 'checked' : '' }}>
+                                <span class="slider"></span>
+                            </label>
+                            <div>
+                                <strong style="color: #0d3b66; font-size: 14px; display: block;">Eye Blink Challenge</strong>
+                                <span style="color: #64748b; font-size: 12px;">Detects natural blinking sequence of eyes.</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-3">
+                            <label class="switch">
+                                <input type="hidden" name="liveness_turn_left" value="0">
+                                <input type="checkbox" name="liveness_turn_left" value="1" class="liveness-challenge-toggle"
+                                       {{ old('liveness_turn_left', $settings['liveness_turn_left']) == '1' ? 'checked' : '' }}>
+                                <span class="slider"></span>
+                            </label>
+                            <div>
+                                <strong style="color: #0d3b66; font-size: 14px; display: block;">Hadap Kiri (Turn Head Left) Challenge</strong>
+                                <span style="color: #64748b; font-size: 12px;">Detects turning of head towards left side.</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-3">
+                            <label class="switch">
+                                <input type="hidden" name="liveness_turn_right" value="0">
+                                <input type="checkbox" name="liveness_turn_right" value="1" class="liveness-challenge-toggle"
+                                       {{ old('liveness_turn_right', $settings['liveness_turn_right']) == '1' ? 'checked' : '' }}>
+                                <span class="slider"></span>
+                            </label>
+                            <div>
+                                <strong style="color: #0d3b66; font-size: 14px; display: block;">Hadap Kanan (Turn Head Right) Challenge</strong>
+                                <span style="color: #64748b; font-size: 12px;">Detects turning of head towards right side.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 text-end mt-4">
+                    <button type="submit" class="btn-save">
+                        <i class="fas fa-shield-alt me-2"></i> Save Liveness Settings
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
+    function toggleLivenessSubSettings() {
+        const isEnabled = document.getElementById('liveness_enabled').checked;
+        const subSettingsContainer = document.querySelector('.liveness-sub-settings');
+        const toggles = subSettingsContainer.querySelectorAll('.liveness-challenge-toggle');
+        
+        if (isEnabled) {
+            subSettingsContainer.style.opacity = '1';
+            subSettingsContainer.style.pointerEvents = 'auto';
+            toggles.forEach(t => t.disabled = false);
+        } else {
+            subSettingsContainer.style.opacity = '0.5';
+            subSettingsContainer.style.pointerEvents = 'none';
+            toggles.forEach(t => t.disabled = true);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('liveness_enabled').addEventListener('change', toggleLivenessSubSettings);
+        toggleLivenessSubSettings();
+    });
+
     function showShift(num) {
         document.querySelectorAll('.shift-tab').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.shift-panel').forEach(panel => panel.classList.remove('active'));

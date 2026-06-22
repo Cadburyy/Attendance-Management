@@ -184,40 +184,29 @@
         // UI Loading State
         btnSubmit.disabled = true;
         const originalText = btnSubmit.innerText;
-        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Memverifikasi Lokasi...';
+        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Mendapatkan Lokasi...';
         statusDiv.style.display = 'none';
 
         try {
             const coords = await getCoordinates();
-            const result = await checkLocation(coords);
+            
+            let latInput = document.createElement('input');
+            latInput.type = 'hidden';
+            latInput.name = 'latitude';
+            latInput.value = coords.latitude;
+            loginForm.appendChild(latInput);
 
-            if (result.status === 'allowed') {
-                // If coordinates verified, append to form and submit
-                let latInput = document.createElement('input');
-                latInput.type = 'hidden';
-                latInput.name = 'latitude';
-                latInput.value = coords.latitude;
-                loginForm.appendChild(latInput);
-
-                let lngInput = document.createElement('input');
-                lngInput.type = 'hidden';
-                lngInput.name = 'longitude';
-                lngInput.value = coords.longitude;
-                loginForm.appendChild(lngInput);
-
-                loginForm.submit();
-            } else {
-                statusDiv.innerText = result.message || 'Anda berada di luar jangkauan kantor.';
-                statusDiv.style.display = 'block';
-                btnSubmit.disabled = false;
-                btnSubmit.innerText = originalText;
-            }
+            let lngInput = document.createElement('input');
+            lngInput.type = 'hidden';
+            lngInput.name = 'longitude';
+            lngInput.value = coords.longitude;
+            loginForm.appendChild(lngInput);
         } catch (error) {
-            statusDiv.innerText = error;
-            statusDiv.style.display = 'block';
-            btnSubmit.disabled = false;
-            btnSubmit.innerText = originalText;
+            console.warn('Geolocation capture failed/skipped:', error);
+            // Proceed anyway; backend will exempt AdminIT but block others if coordinates are missing
         }
+
+        loginForm.submit();
     });
 
     // Intercept AI System Button Click

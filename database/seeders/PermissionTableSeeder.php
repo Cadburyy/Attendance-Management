@@ -16,6 +16,7 @@ class PermissionTableSeeder extends Seeder
             'user',
             'setting',
             'override',
+            'bypass-uniform',
         ];
 
         foreach ($permissions as $permission) {

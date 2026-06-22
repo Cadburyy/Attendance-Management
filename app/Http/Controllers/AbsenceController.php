@@ -14,7 +14,10 @@ class AbsenceController extends Controller
 {
     public function index()
     {
-        return view('absence');
+        $settings = Cache::remember('app_settings', 60, function() {
+            return Setting::pluck('value', 'key')->toArray();
+        });
+        return view('absence', compact('settings'));
     }
 
     private function getActiveShiftDetails($now)
@@ -117,6 +120,14 @@ class AbsenceController extends Controller
                     $today = $now->toDateString();
                     $currentTime = $now->format('H:i');
                     
+                    // Check if user has permission to bypass uniform detection
+                    if (isset($aiData['has_uniform']) && $aiData['has_uniform'] === false) {
+                        if (!$detectedUser->can('bypass-uniform')) {
+                            $aiData['status'] = 'no_uniform';
+                            $aiData['message'] = 'Uniform not valid for ' . $now->format('l');
+                        }
+                    }
+
                     $shift = $this->getActiveShiftDetails($now);
                     $outStart = $shift ? $shift['out_start'] : '16:00';
                     

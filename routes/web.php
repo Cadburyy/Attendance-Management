@@ -48,6 +48,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/settings/appearance', [SettingsController::class, 'updateAppearance'])->name('settings.update.appearance');
     Route::put('/settings/absence-time', [SettingsController::class, 'updateAbsenceTime'])->name('settings.update.absence');
     Route::put('/settings/geolocation', [SettingsController::class, 'updateGeolocation'])->name('settings.update.geolocation');
+    Route::put('/settings/liveness', [SettingsController::class, 'updateLiveness'])->name('settings.update.liveness');
     
     Route::get('/users/{id}/picture', [UserController::class, 'showPicture'])->name('users.picture');
     Route::get('/users/{id}/decrypt', [UserController::class, 'decryptImage'])->name('users.decrypt');
