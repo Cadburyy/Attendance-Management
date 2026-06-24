@@ -192,22 +192,18 @@ def verify_liveness():
         if not mp_tasks_available or not os.path.exists(TASK_FILE_PATH):
             return jsonify({'status': 'error', 'message': 'MediaPipe Tasks Face Landmarker is not ready or model file is missing.'}), 500
             
+        # Use the correct globally initialized landmarker
+        landmarker = global_landmarker
+        if landmarker is None:
+            return jsonify({'status': 'error', 'message': 'Face Landmarker model is not initialized.'}), 500
+
         ear_values = []
         turn_ratios = []
         depth_diffs = []
         blue_reflections = []
+        detected_frames_data = []
         
-        # Use global landmarker if available, otherwise create a fallback one
-        landmarker = global_landmarker
-        if landmarker is None:
-            base_options = python.BaseOptions(model_asset_path=TASK_FILE_PATH)
-            options = vision.FaceLandmarkerOptions(
-                base_options=base_options,
-                output_face_blendshapes=False,
-                output_facial_transformation_matrixes=False,
-                num_faces=1
-            )
-            landmarker = vision.FaceLandmarker.create_from_options(options)
+        detected_count = 0
 
         for frame_b64 in frames:
             frame = decode_image(frame_b64)
@@ -220,7 +216,50 @@ def verify_liveness():
             detection_result = landmarker.detect(mp_image)
             
             if detection_result.face_landmarks:
+                detected_count += 1
                 landmarks = detection_result.face_landmarks[0]
+                
+                # Calculate bounding box center and size
+                xs = [pt.x for pt in landmarks]
+                ys = [pt.y for pt in landmarks]
+                min_x, max_x = min(xs), max(xs)
+                min_y, max_y = min(ys), max(ys)
+                cx, cy = (min_x + max_x) / 2.0, (min_y + max_y) / 2.0
+                w, h = max_x - min_x, max_y - min_y
+                
+                # Head turn ratio
+                ratio = detect_head_turn(landmarks)
+                
+                # EAR (Eye Aspect Ratio)
+                left_eye = [landmarks[33], landmarks[160], landmarks[158], landmarks[133], landmarks[153], landmarks[144]]
+                right_eye = [landmarks[362], landmarks[385], landmarks[387], landmarks[263], landmarks[373], landmarks[380]]
+                left_ear = calculate_ear(left_eye)
+                right_ear = calculate_ear(right_eye)
+                avg_ear = (left_ear + right_ear) / 2.0
+                
+                # Check for instant jump / photo swapping compared to the previous detected frame
+                if len(detected_frames_data) > 0:
+                    prev = detected_frames_data[-1]
+                    
+                    # 1. Coordinate jump (wajah berpindah tempat secara instan)
+                    dist = np.sqrt((cx - prev['cx'])**2 + (cy - prev['cy'])**2)
+                    if dist > 0.20: # Relaxed from 0.07 to 0.20 (20% of frame size)
+                        return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Perubahan posisi wajah tidak alami (terdeteksi pergantian foto)'})
+                    
+                    # 2. Scale jump (ukuran wajah membesar/mengecil secara instan)
+                    scale_w = abs(w - prev['w']) / (prev['w'] + 1e-5)
+                    scale_h = abs(h - prev['h']) / (prev['h'] + 1e-5)
+                    if scale_w > 0.30 or scale_h > 0.30: # Relaxed from 0.11 to 0.30 (30% scale change)
+                        return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Perubahan ukuran wajah tidak alami (terdeteksi pergantian foto)'})
+                    
+                    # 3. Head turn ratio jump (arah hadap wajah berputar secara instan)
+                    if abs(ratio - prev['turn_ratio']) > 0.25: # Relaxed from 0.15 to 0.25
+                        return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Gerakan kepala tidak alami (terdeteksi pergantian foto)'})
+                
+                detected_frames_data.append({
+                    'cx': cx, 'cy': cy, 'w': w, 'h': h,
+                    'turn_ratio': ratio, 'ear': avg_ear
+                })
                 
                 # 3D Depth Check (Anti-Spoofing flat screens/photos)
                 edge_z = (landmarks[234].z + landmarks[454].z) / 2.0
@@ -229,11 +268,11 @@ def verify_liveness():
                 
                 # Active Flash Color Check
                 if flash_active:
-                    xs = [int(pt.x * frame.shape[1]) for pt in landmarks]
-                    ys = [int(pt.y * frame.shape[0]) for pt in landmarks]
-                    min_x, max_x = max(0, min(xs)), min(frame.shape[1], max(xs))
-                    min_y, max_y = max(0, min(ys)), min(frame.shape[0], max(ys))
-                    face_roi = frame[min_y:max_y, min_x:max_x]
+                    xs_px = [int(pt.x * frame.shape[1]) for pt in landmarks]
+                    ys_px = [int(pt.y * frame.shape[0]) for pt in landmarks]
+                    min_x_px, max_x_px = max(0, min(xs_px)), min(frame.shape[1], max(xs_px))
+                    min_y_px, max_y_px = max(0, min(ys_px)), min(frame.shape[0], max(ys_px))
+                    face_roi = frame[min_y_px:max_y_px, min_x_px:max_x_px]
                     if face_roi.size > 0:
                         avg_b = np.mean(face_roi[:, :, 0])
                         avg_g = np.mean(face_roi[:, :, 1])
@@ -241,32 +280,23 @@ def verify_liveness():
                         blue_reflections.append(avg_b / (avg_r + avg_g + 1e-5))
                 
                 if challenge == 'blink':
-                    left_eye = [landmarks[33], landmarks[160], landmarks[158], landmarks[133], landmarks[153], landmarks[144]]
-                    right_eye = [landmarks[362], landmarks[385], landmarks[387], landmarks[263], landmarks[373], landmarks[380]]
-                    left_ear = calculate_ear(left_eye)
-                    right_ear = calculate_ear(right_eye)
-                    avg_ear = (left_ear + right_ear) / 2.0
                     ear_values.append(avg_ear)
                 elif challenge in ['turn_left', 'turn_right']:
-                    ratio = detect_head_turn(landmarks)
                     turn_ratios.append(ratio)
         
-        # Validate 3D Depth Kontur (must not be flat like a photo or screen)
-        if depth_diffs:
-            avg_depth = np.mean(depth_diffs)
-            if avg_depth < 0.012:
-                return jsonify({'status': 'failed', 'message': f'Spoofing Terdeteksi: Deteksi Kedalaman Layar 2D (Kontur 3D: {avg_depth:.4f})'})
-                
-        # Validate Active Flash Color Reflection
-        if flash_active and blue_reflections:
-            avg_blue_ratio = np.mean(blue_reflections)
-            # A real face reflecting a blue screen has a higher blue ratio.
-            if avg_blue_ratio < 0.22:
-                return jsonify({'status': 'failed', 'message': f'Spoofing Terdeteksi: Gagal memverifikasi pantulan cahaya aktif (Rasio: {avg_blue_ratio:.3f})'})
-
+        # 1. Strict Detection Rate Check (Prevents photo swapping / covering camera)
+        if detected_count < 13:
+            return jsonify({'status': 'failed', 'message': f'Spoofing Terdeteksi: Pergerakan wajah terputus atau kamera terhalang (Deteksi: {detected_count}/15 frame)'})
+ 
         if challenge == 'blink':
             if not ear_values:
                 return jsonify({'status': 'failed', 'message': 'No face detected in any of the frames'}), 200
+            
+            # Static Photo Detection for blink: EAR must have some natural variance
+            ear_std = np.std(ear_values)
+            if ear_std < 0.008:
+                return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Mata terdeteksi statis/diam (kemungkinan menggunakan foto)'})
+
             min_ear = min(ear_values)
             max_ear = max(ear_values)
             if min_ear <= 0.21 and max_ear >= 0.25:
@@ -277,20 +307,36 @@ def verify_liveness():
         elif challenge == 'turn_left':
             if not turn_ratios:
                 return jsonify({'status': 'failed', 'message': 'No face detected in any of the frames'}), 200
+            
+            # Static Photo Detection for turn: turn ratio must have some variance/movement
+            turn_range = max(turn_ratios) - min(turn_ratios)
+            if turn_range < 0.08: # Increased from 0.05 to 0.08
+                return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Gerakan kepala statis/diam (kemungkinan menggunakan foto)'})
+
             max_ratio = max(turn_ratios)
-            if max_ratio >= 0.62:
+            min_ratio = min(turn_ratios)
+            # Enforce that user must have started from a centered position (<= 0.54) and turned left (>= 0.62)
+            if max_ratio >= 0.62 and min_ratio <= 0.54:
                 return jsonify({'status': 'passed', 'message': 'Left turn detected successfully.'})
             else:
-                return jsonify({'status': 'failed', 'message': f'Left turn not detected. Max ratio: {max_ratio:.3f}. Needs >= 0.62.'})
+                return jsonify({'status': 'failed', 'message': f'Left turn not detected. Min ratio: {min_ratio:.3f} (needs <= 0.54), Max ratio: {max_ratio:.3f} (needs >= 0.62).'})
                 
         elif challenge == 'turn_right':
             if not turn_ratios:
                 return jsonify({'status': 'failed', 'message': 'No face detected in any of the frames'}), 200
+
+            # Static Photo Detection for turn: turn ratio must have some variance/movement
+            turn_range = max(turn_ratios) - min(turn_ratios)
+            if turn_range < 0.08: # Increased from 0.05 to 0.08
+                return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Gerakan kepala statis/diam (kemungkinan menggunakan foto)'})
+
             min_ratio = min(turn_ratios)
-            if min_ratio <= 0.38:
+            max_ratio = max(turn_ratios)
+            # Enforce that user must have started from a centered position (>= 0.46) and turned right (<= 0.38)
+            if min_ratio <= 0.38 and max_ratio >= 0.46:
                 return jsonify({'status': 'passed', 'message': 'Right turn detected successfully.'})
             else:
-                return jsonify({'status': 'failed', 'message': f'Right turn not detected. Min ratio: {min_ratio:.3f}. Needs <= 0.38.'})
+                return jsonify({'status': 'failed', 'message': f'Right turn not detected. Max ratio: {max_ratio:.3f} (needs >= 0.46), Min ratio: {min_ratio:.3f} (needs <= 0.38).'})
                 
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
