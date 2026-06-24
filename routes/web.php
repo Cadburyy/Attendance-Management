@@ -22,7 +22,6 @@ Route::get('/absence/all-users', [AbsenceController::class, 'getAllUsers'])->nam
 Route::post('/absence/record', [AbsenceController::class, 'record'])->name('absence.record');
 Route::get('/absence/recent', [AbsenceController::class, 'getRecent'])->name('absence.recent');
 Route::post('/absence/liveness', [AbsenceController::class, 'proxyLiveness'])->name('absence.liveness');
-Route::post('/absence/chat', [AbsenceController::class, 'proxyChat'])->name('absence.chat');
 Route::post('/absence/verify-location', [AbsenceController::class, 'verifyGeolocation'])->name('absence.verify-location');
 
 Auth::routes();
