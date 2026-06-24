@@ -29,12 +29,21 @@ class HomeController extends Controller
             $queryBase->where('user_id', $user->id);
         }
         
-        $monthlyRawStats = (clone $queryBase)
+        $monthlyAttendances = (clone $queryBase)
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
-            ->select('status', DB::raw('count(*) as total'))
-            ->groupBy('status')
-            ->pluck('total', 'status')
-            ->toArray();
+            ->get();
+
+        $presentThisMonth = $monthlyAttendances->filter(function ($att) {
+            if ($att->status === 'present' || $att->status === 'late') {
+                return true;
+            }
+            if ($att->status === 'leave' && !is_null($att->check_in) && !is_null($att->check_out)) {
+                return true;
+            }
+            return false;
+        })->count();
+
+        $monthlyRawStats = $monthlyAttendances->groupBy('status')->map->count()->toArray();
 
         $monthlyStats = [
             'present' => $monthlyRawStats['present'] ?? 0,
@@ -121,6 +130,7 @@ class HomeController extends Controller
 
         return view('home', compact(
             'monthlyStats',
+            'presentThisMonth',
             'labels',
             'presentData',
             'absentData',

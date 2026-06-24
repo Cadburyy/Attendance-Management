@@ -130,7 +130,7 @@
                 </div>
                 <div class="stat-content">
                     <p class="stat-label">Present This Month</p>
-                    <h2 class="stat-value">{{ $monthlyStats['present'] }}</h2>
+                    <h2 class="stat-value">{{ $presentThisMonth }}</h2>
                 </div>
             </div>
         </div>

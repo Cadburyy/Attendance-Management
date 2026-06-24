@@ -24,6 +24,7 @@ class Attendance extends Model
         'image',
         'latitude',
         'longitude',
+        'shift',
     ];
 
     protected $casts = [

@@ -327,6 +327,7 @@
 <div class="container">
     <div class="camera-section">
         <video id="video" autoplay muted></video>
+        <div id="flash-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 255, 0.25); mix-blend-mode: screen; pointer-events: none; z-index: 10; transition: background 0.1s;"></div>
         <div class="overlay">
             <div class="scanner-box">
                 <div class="scanner-line"></div>
@@ -433,6 +434,173 @@
     </div>
 </div>
 
+<!-- Chatbot Floating Widget -->
+<style>
+    .chatbot-trigger {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent) 0%, #0d3b66 100%);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        z-index: 1000;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .chatbot-trigger:hover {
+        transform: scale(1.1) rotate(15deg);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+    }
+    .chatbot-window {
+        position: fixed;
+        bottom: 105px;
+        right: 30px;
+        width: 380px;
+        height: 500px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 1000;
+        transition: all 0.3s ease;
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    .chatbot-window.active {
+        display: flex;
+        transform: translateY(0);
+        opacity: 1;
+    }
+    .chatbot-header {
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #0d3b66 0%, #051b30 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .chatbot-header-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .chatbot-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10b981;
+        display: inline-block;
+    }
+    .chatbot-messages {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .chat-bubble {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 16px;
+        font-size: 13px;
+        line-height: 1.5;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .chat-bubble.bot {
+        background: white;
+        color: #1e293b;
+        align-self: flex-start;
+        border-bottom-left-radius: 4px;
+        border: 1px solid rgba(0,0,0,0.05);
+    }
+    .chat-bubble.user {
+        background: var(--accent);
+        color: white;
+        align-self: flex-end;
+        border-bottom-right-radius: 4px;
+    }
+    .chatbot-input-container {
+        padding: 16px;
+        background: white;
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
+        display: flex;
+        gap: 10px;
+    }
+    .chatbot-input {
+        flex: 1;
+        border: 1px solid #e2e8f0;
+        border-radius: 24px;
+        padding: 10px 18px;
+        font-size: 13px;
+        outline: none;
+        transition: border 0.2s;
+    }
+    .chatbot-input:focus {
+        border-color: var(--accent);
+    }
+    .chatbot-send-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: white;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .chatbot-send-btn:hover {
+        background: #0d3b66;
+    }
+</style>
+
+<div class="chatbot-trigger" id="chatbot-trigger" onclick="toggleChatbot()">
+    <i class="fas fa-comments"></i>
+</div>
+
+<div class="chatbot-window" id="chatbot-window">
+    <div class="chatbot-header">
+        <div class="chatbot-header-info">
+            <i class="fas fa-robot" style="font-size: 18px; color: var(--accent);"></i>
+            <div>
+                <strong style="display: block; font-size: 14px;">CNK AI Assistant</strong>
+                <span style="font-size: 10px; opacity: 0.8;"><span class="chatbot-status-dot"></span> Online</span>
+            </div>
+        </div>
+        <button onclick="toggleChatbot()" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    
+    <div class="chatbot-messages" id="chatbot-messages">
+        <div class="chat-bubble bot">
+            Halo! Saya CNK AI Assistant. Ada yang bisa saya bantu hari ini mengenai absensi, jadwal shift, atau info kehadiran Anda?
+        </div>
+    </div>
+    
+    <div class="chatbot-input-container">
+        <input type="text" id="chatbot-input" class="chatbot-input" placeholder="Tanya sesuatu..." onkeypress="handleChatKey(event)">
+        <button class="chatbot-send-btn" onclick="sendChatMessage()">
+            <i class="fas fa-paper-plane"></i>
+        </button>
+    </div>
+</div>
+
 <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -489,10 +657,13 @@
                             },
                             body: JSON.stringify(geolocationCoords)
                         });
+                        if (!response.ok) {
+                            throw new Error('Gagal menghubungi server. Status: ' + response.status);
+                        }
                         const data = await response.json();
                         resolve(data);
                     } catch (err) {
-                        reject(err);
+                        reject(err.message || err);
                     }
                 },
                 async (error) => {
@@ -506,6 +677,9 @@
                             },
                             body: JSON.stringify({ latitude: 0, longitude: 0 })
                         });
+                        if (!response.ok) {
+                            throw new Error('Gagal menghubungi server. Status: ' + response.status);
+                        }
                         const data = await response.json();
                         if (data.status === 'allowed') {
                             resolve(data); // Geolocation is disabled, so allow
@@ -513,7 +687,7 @@
                             reject('Akses lokasi diblokir atau tidak tersedia. Harap aktifkan GPS Anda.');
                         }
                     } catch (err) {
-                        reject('Akses lokasi diperlukan untuk menggunakan sistem ini.');
+                        reject('Akses lokasi diperlukan untuk menggunakan sistem ini. (' + (err.message || err) + ')');
                     }
                 },
                 { enableHighAccuracy: true, timeout: 10000 }
@@ -723,6 +897,9 @@
         
         updateChallengeDots();
 
+        // Turn on active flash blue light
+        document.getElementById('flash-overlay').style.display = 'block';
+
         livenessFrames = [];
         let progress = 0;
         const progressEl = document.getElementById('liveness-overlay-progress');
@@ -731,8 +908,10 @@
         if (livenessInterval) clearInterval(livenessInterval);
         livenessInterval = setInterval(async () => {
             const context = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            const targetWidth = 400;
+            const scale = targetWidth / video.videoWidth;
+            canvas.width = targetWidth;
+            canvas.height = video.videoHeight * scale;
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             livenessFrames.push(canvas.toDataURL('image/jpeg', 0.8));
 
@@ -742,6 +921,8 @@
             if (livenessFrames.length >= 15) {
                 clearInterval(livenessInterval);
                 livenessInterval = null;
+                // Turn off active flash blue light
+                document.getElementById('flash-overlay').style.display = 'none';
                 await verifyCurrentChallenge();
             }
         }, 200); // 15 frames in 3 seconds
@@ -758,7 +939,8 @@
                 },
                 body: JSON.stringify({
                     frames: livenessFrames,
-                    challenge: currentChallenge
+                    challenge: currentChallenge,
+                    flash_active: true
                 })
             });
 
@@ -829,6 +1011,7 @@
 
         document.getElementById('confirm-modal').style.display = 'none';
         document.getElementById('liveness-overlay-card').style.display = 'none';
+        document.getElementById('flash-overlay').style.display = 'none';
         document.getElementById('user-search').value = '';
         document.getElementById('search-suggestions').style.display = 'none';
         document.getElementById('liveness-challenge').style.display = 'none';
@@ -966,7 +1149,10 @@
                      <div class="attendance-item">
                         <div class="user-avatar">${initials}</div>
                         <div class="user-info">
-                            <span class="user-name">${item.user.name}</span>
+                            <span class="user-name" style="display: flex; align-items: center; gap: 6px;">
+                                ${item.user.name}
+                                <span style="font-size: 9px; padding: 2px 6px; border-radius: 12px; background: rgba(13, 59, 102, 0.1); color: #0d3b66; font-weight: 700;">Shift ${item.shift || '-'}</span>
+                            </span>
                             <span class="user-time">${time}</span>
                         </div>
                         <div class="status-badge ${badgeClass}">${type}</div>
@@ -987,6 +1173,82 @@
         
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // Chatbot JS Functions
+    function toggleChatbot() {
+        const windowEl = document.getElementById('chatbot-window');
+        windowEl.classList.toggle('active');
+        if (windowEl.classList.contains('active')) {
+            windowEl.style.display = 'flex';
+            setTimeout(() => {
+                windowEl.style.opacity = '1';
+                windowEl.style.transform = 'translateY(0)';
+            }, 10);
+            document.getElementById('chatbot-input').focus();
+        } else {
+            windowEl.style.opacity = '0';
+            windowEl.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                windowEl.style.display = 'none';
+            }, 300);
+        }
+    }
+
+    function handleChatKey(event) {
+        if (event.key === 'Enter') {
+            sendChatMessage();
+        }
+    }
+
+    async function sendChatMessage() {
+        const inputEl = document.getElementById('chatbot-input');
+        const message = inputEl.value.trim();
+        if (!message) return;
+
+        inputEl.value = '';
+        appendChatMessage('user', message);
+
+        const messagesDiv = document.getElementById('chatbot-messages');
+        const loadingId = 'loading-' + Date.now();
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'chat-bubble bot';
+        loadingEl.id = loadingId;
+        loadingEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Berpikir...';
+        messagesDiv.appendChild(loadingEl);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        try {
+            const response = await fetch('{{ route("absence.chat") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ 
+                    message: message,
+                    user_id: typeof detectedUserId !== 'undefined' ? detectedUserId : null
+                })
+            });
+
+            const data = await response.json();
+            const lEl = document.getElementById(loadingId);
+            if (lEl) lEl.remove();
+            appendChatMessage('bot', data.reply || 'Maaf, terjadi masalah.');
+        } catch (e) {
+            const lEl = document.getElementById(loadingId);
+            if (lEl) lEl.remove();
+            appendChatMessage('bot', 'Maaf, gagal menghubungi asisten AI.');
+        }
+    }
+
+    function appendChatMessage(sender, text) {
+        const messagesDiv = document.getElementById('chatbot-messages');
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble ' + sender;
+        bubble.innerText = text;
+        messagesDiv.appendChild(bubble);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
     // Init

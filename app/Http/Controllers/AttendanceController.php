@@ -189,7 +189,7 @@ class AttendanceController extends Controller
         if (!Auth::user()->can('override')) {
             return redirect()->route('home')->with('error', 'You cannot access the page.');
         }
-        $attendance->delete();
+            $attendance->delete();
 
         return redirect()->route('attendances.index')
             ->with('success', 'Attendance deleted successfully!');

@@ -29,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
             return route('login');
         });
 
+        $middleware->validateCsrfTokens(except: [
+            'absence/*',
+        ]);
+
         // 3. THE COOKIE FIX
         // Laravel 11 encrypts all cookies. We must exclude this one so the 
         // OtpController can read the User ID correctly.

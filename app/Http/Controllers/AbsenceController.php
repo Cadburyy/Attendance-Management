@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
 
 class AbsenceController extends Controller
 {
@@ -38,30 +39,48 @@ class AbsenceController extends Controller
         // Fallback: use old keys if shift 1 keys don't exist
         if (empty($shifts[1]['in_start'])) {
             $shifts[1] = [
-                'in_start' => $settings['attendance_in_start'] ?? '07:00',
-                'in_end' => $settings['attendance_in_end'] ?? '09:00',
-                'out_start' => $settings['attendance_out_start'] ?? '16:00',
-                'out_end' => $settings['attendance_out_end'] ?? '18:00',
+                'in_start' => $settings['attendance_in_start'] ?? '06:00',
+                'in_end' => $settings['attendance_in_end'] ?? '08:00',
+                'out_start' => $settings['attendance_out_start'] ?? '14:00',
+                'out_end' => $settings['attendance_out_end'] ?? '16:00',
             ];
+        }
+
+        // Apply defaults for other shifts if not set
+        $defaults = [
+            2 => [
+                'in_start' => '14:00', 'in_end' => '15:00',
+                'out_start' => '21:00', 'out_end' => '23:00',
+            ],
+            3 => [
+                'in_start' => '21:00', 'in_end' => '22:00',
+                'out_start' => '05:00', 'out_end' => '07:00',
+            ],
+        ];
+
+        for ($i = 2; $i <= 3; $i++) {
+            if (empty($shifts[$i]['in_start'])) {
+                $shifts[$i] = $defaults[$i];
+            }
         }
 
         $compareTime = $now->format('H:i');
         $activeShift = null;
 
         foreach ($shifts as $num => $shift) {
-            if (!$shift['in_start']) continue;
+            if (!$shift['in_start'] || !$shift['out_start']) continue;
 
             $inStart = $shift['in_start'];
-            $outEnd = $shift['out_end'];
+            $outStart = $shift['out_start'];
 
-            // Handle midnight-spanning shifts
-            if ($outEnd < $inStart) {
-                if ($compareTime >= $inStart || $compareTime <= $outEnd) {
+            // Match active shift based on its working period (from in_start to out_start)
+            if ($outStart < $inStart) {
+                if ($compareTime >= $inStart || $compareTime <= $outStart) {
                     $activeShift = $num;
                     break;
                 }
             } else {
-                if ($compareTime >= $inStart && $compareTime <= $outEnd) {
+                if ($compareTime >= $inStart && $compareTime <= $outStart) {
                     $activeShift = $num;
                     break;
                 }
@@ -73,6 +92,61 @@ class AbsenceController extends Controller
         }
 
         return array_merge($shifts[$activeShift], ['shift_number' => $activeShift]);
+    }
+
+    private function getActiveAttendance($userId, $now)
+    {
+        $today = $now->toDateString();
+        // 1. Try to find today's incomplete attendance record (checked in but not checked out yet)
+        $attendance = Attendance::where('user_id', $userId)
+            ->where('date', $today)
+            ->whereNotNull('check_in')
+            ->whereNull('check_out')
+            ->first();
+        if ($attendance) {
+            return $attendance;
+        }
+
+        // 2. If no today's record, check yesterday's record for a cross-day shift
+        $yesterday = $now->copy()->subDay()->toDateString();
+        $yesterdayAttendance = Attendance::where('user_id', $userId)
+            ->where('date', $yesterday)
+            ->whereNotNull('check_in')
+            ->whereNull('check_out')
+            ->orderBy('id', 'desc')
+            ->first();
+        
+        if ($yesterdayAttendance) {
+            $shiftNum = $yesterdayAttendance->shift;
+            if ($shiftNum) {
+                $settings = Setting::pluck('value', 'key')->toArray();
+                $defaults = [
+                    'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
+                    'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
+                    'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
+                    'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
+                    'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
+                    'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
+                ];
+                $settings = array_merge($defaults, $settings);
+                
+                $outStart = $settings["shift_{$shiftNum}_out_start"] ?? null;
+                $outEnd = $settings["shift_{$shiftNum}_out_end"] ?? null;
+                
+                if ($outStart && $outEnd) {
+                    $compareTime = $now->format('H:i');
+                    $isCheckoutTime = ($outEnd < $outStart) 
+                        ? ($compareTime >= $outStart || $compareTime <= $outEnd)
+                        : ($compareTime >= $outStart && $compareTime <= $outEnd);
+                        
+                    if ($isCheckoutTime) {
+                        return $yesterdayAttendance;
+                    }
+                }
+            }
+        }
+        
+        return null;
     }
 
     public function proxyAnalyze(Request $request)
@@ -128,17 +202,59 @@ class AbsenceController extends Controller
                         }
                     }
 
-                    $shift = $this->getActiveShiftDetails($now);
-                    $outStart = $shift ? $shift['out_start'] : '16:00';
-                    
-                    $attendance = Attendance::where('user_id', $detectedUser->id)->where('date', $today)->first();
+                    $attendance = $this->getActiveAttendance($detectedUser->id, $now);
                     
                     $already = false;
-                    if ($attendance) {
+                    if ($attendance && $attendance->check_in) {
+                        $activeShiftNum = $attendance->shift;
+                        $settings = Setting::pluck('value', 'key')->toArray();
+                        $defaults = [
+                            'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
+                            'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
+                            'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
+                            'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
+                            'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
+                            'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
+                        ];
+                        $settings = array_merge($defaults, $settings);
+
+                        // If shift is empty in DB, fallback to matching check_in time against check-in windows
+                        if (!$activeShiftNum) {
+                            $checkInTimeStr = substr($attendance->check_in, 0, 5); // HH:MM
+                            for ($i = 1; $i <= 3; $i++) {
+                                $inStart = $settings["shift_{$i}_in_start"];
+                                $outStart = $settings["shift_{$i}_out_start"];
+                                if ($outStart < $inStart) {
+                                    if ($checkInTimeStr >= $inStart || $checkInTimeStr < $outStart) {
+                                        $activeShiftNum = $i;
+                                        break;
+                                    }
+                                } else {
+                                    if ($checkInTimeStr >= $inStart && $checkInTimeStr < $outStart) {
+                                        $activeShiftNum = $i;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!$activeShiftNum) {
+                            $fallbackShift = $this->getActiveShiftDetails($now);
+                            $activeShiftNum = $fallbackShift ? $fallbackShift['shift_number'] : 1;
+                        }
+                        $outStart = $settings["shift_{$activeShiftNum}_out_start"];
+                        
                         if ($currentTime < $outStart) {
-                            $already = (bool)$attendance->check_in; // Already checked in
+                            $already = true;
                         } else {
-                            $already = (bool)$attendance->check_out; // Already checked out
+                            $already = (bool)$attendance->check_out;
+                        }
+                    } else {
+                        $shift = $this->getActiveShiftDetails($now);
+                        if (!$shift) {
+                            $already = false;
+                        } else {
+                            $already = $attendance ? (bool)$attendance->check_in : false;
                         }
                     }
                     $aiData['already_attended'] = $already;
@@ -182,60 +298,61 @@ class AbsenceController extends Controller
         $currentTime = $now->format('H:i:s');
         $compareTime = $now->format('H:i');
 
-        $shift = $this->getActiveShiftDetails($now);
-        if (!$shift) {
-            return response()->json([
-                'status' => 'outside_hours',
-                'message' => "Diluar jadwal operasional. [Sekarang: $compareTime]"
-            ]);
-        }
-
-        $inStart = $shift['in_start'];
-        $inEnd = $shift['in_end'];
-        $outStart = $shift['out_start'];
-        $outEnd = $shift['out_end'];
-
-        // Find existing or create new attendance record for today
-        $attendance = Attendance::firstOrCreate(
-            ['user_id' => $user->id, 'date' => $today],
-            ['status' => 'present', 'override_status' => 'machine']
-        );
+        // Look up today's attendance record
+        $attendance = $this->getActiveAttendance($user->id, $now);
 
         $status = '';
         $message = '';
 
-        // Check-in vs Check-out
-        if ($compareTime >= $inStart && $compareTime < $outStart) {
-            if (!$attendance->check_in) {
-                $finalStatus = ($compareTime <= $inEnd) ? 'present' : 'late';
-                $attendance->update([
-                    'check_in' => $currentTime,
-                    'status' => $finalStatus,
-                    'latitude' => $request->latitude,
-                    'longitude' => $request->longitude,
-                ]);
-                
-                $status = 'check-in';
-                $message = ($finalStatus == 'late') 
-                    ? 'Terlambat! Absensi berhasil dicatat untuk ' . $user->name 
-                    : 'Check-in berhasil untuk ' . $user->name;
-            } else {
-                $status = 'already';
-                $message = $user->name . ' sudah melakukan check-in.';
+        if ($attendance && $attendance->check_in) {
+            // CHECK-OUT FLOW (using the locked shift from check-in)
+            $activeShiftNum = $attendance->shift;
+            $settings = Setting::pluck('value', 'key')->toArray();
+            $defaults = [
+                'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
+                'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
+                'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
+                'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
+                'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
+                'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
+            ];
+            $settings = array_merge($defaults, $settings);
+            
+            // If shift is empty in DB, fallback to matching check_in time against check-in windows
+            if (!$activeShiftNum) {
+                $checkInTimeStr = substr($attendance->check_in, 0, 5); // HH:MM
+                for ($i = 1; $i <= 3; $i++) {
+                    $inStart = $settings["shift_{$i}_in_start"];
+                    $outStart = $settings["shift_{$i}_out_start"];
+                    if ($outStart < $inStart) {
+                        if ($checkInTimeStr >= $inStart || $checkInTimeStr < $outStart) {
+                            $activeShiftNum = $i;
+                            break;
+                        }
+                    } else {
+                        if ($checkInTimeStr >= $inStart && $checkInTimeStr < $outStart) {
+                            $activeShiftNum = $i;
+                            break;
+                        }
+                    }
+                }
             }
-        } else {
+
+            if (!$activeShiftNum) {
+                $fallbackShift = $this->getActiveShiftDetails($now);
+                $activeShiftNum = $fallbackShift ? $fallbackShift['shift_number'] : 1;
+            }
+
+            $inStart = $settings["shift_{$activeShiftNum}_in_start"];
+            $inEnd = $settings["shift_{$activeShiftNum}_in_end"];
+            $outStart = $settings["shift_{$activeShiftNum}_out_start"];
+            $outEnd = $settings["shift_{$activeShiftNum}_out_end"];
+
             $isCheckoutTime = ($outEnd < $outStart) 
                 ? ($compareTime >= $outStart || $compareTime <= $outEnd)
                 : ($compareTime >= $outStart && $compareTime <= $outEnd);
 
             if ($isCheckoutTime) {
-                if (!$attendance->check_in) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Anda belum melakukan Check-in pagi ini!'
-                    ], 403);
-                }
-
                 if (!$attendance->check_out) {
                     $attendance->update([
                         'check_out' => $currentTime,
@@ -249,17 +366,74 @@ class AbsenceController extends Controller
                     $message = $user->name . ' sudah melakukan check-out.';
                 }
             } else {
-                if ($compareTime < $inStart) {
-                    $errMessage = "Belum masuk jam absensi. (Mulai: $inStart)";
-                } elseif ($compareTime >= $outEnd && $outEnd > $outStart) {
-                    $errMessage = "Sudah melewati batas jam pulang. (Batas: $outEnd)";
+                if ($compareTime >= $inStart && $compareTime < $outStart) {
+                    $status = 'already';
+                    $message = $user->name . ' sudah melakukan check-in.';
                 } else {
-                    $errMessage = "Diluar jadwal operasional.";
+                    if ($compareTime < $outStart) {
+                        $errMessage = "Belum masuk jam pulang shift {$activeShiftNum}. (Mulai: $outStart)";
+                    } else {
+                        $errMessage = "Sudah melewati batas jam pulang shift {$activeShiftNum}. (Batas: $outEnd)";
+                    }
+                    return response()->json([
+                        'status' => 'outside_hours',
+                        'message' => $errMessage . " [Sekarang: $compareTime]"
+                    ]);
                 }
-
+            }
+        } else {
+            // CHECK-IN FLOW (detecting shift based on current time)
+            $shift = $this->getActiveShiftDetails($now);
+            if (!$shift) {
                 return response()->json([
                     'status' => 'outside_hours',
-                    'message' => $errMessage . " [Sekarang: $compareTime]"
+                    'message' => "Diluar jadwal operasional. [Sekarang: $compareTime]"
+                ]);
+            }
+
+            $inStart = $shift['in_start'];
+            $inEnd = $shift['in_end'];
+            $outStart = $shift['out_start'];
+
+            $isCheckinTime = ($outStart < $inStart)
+                ? ($compareTime >= $inStart || $compareTime <= $outStart)
+                : ($compareTime >= $inStart && $compareTime <= $outStart);
+
+            if ($isCheckinTime) {
+                if (!$attendance) {
+                    $attendance = Attendance::create([
+                        'user_id' => $user->id,
+                        'date' => $today,
+                        'status' => 'present',
+                        'override_status' => 'machine'
+                    ]);
+                }
+
+                if (!$attendance->check_in) {
+                    $isOnTime = ($inEnd < $inStart)
+                        ? ($compareTime >= $inStart || $compareTime <= $inEnd)
+                        : ($compareTime >= $inStart && $compareTime <= $inEnd);
+                    $finalStatus = $isOnTime ? 'present' : 'late';
+                    $attendance->update([
+                        'check_in' => $currentTime,
+                        'status' => $finalStatus,
+                        'shift' => $shift['shift_number'],
+                        'latitude' => $request->latitude,
+                        'longitude' => $request->longitude,
+                    ]);
+                    
+                    $status = 'check-in';
+                    $message = ($finalStatus == 'late') 
+                        ? 'Terlambat! Absensi berhasil dicatat untuk ' . $user->name 
+                        : 'Check-in berhasil untuk ' . $user->name;
+                } else {
+                    $status = 'already';
+                    $message = $user->name . ' sudah melakukan check-in.';
+                }
+            } else {
+                return response()->json([
+                    'status' => 'outside_hours',
+                    'message' => "Belum masuk jam check-in. [Sekarang: $compareTime]"
                 ]);
             }
         }
@@ -368,9 +542,10 @@ class AbsenceController extends Controller
     public function proxyLiveness(Request $request)
     {
         try {
-            $response = Http::timeout(15)->post('http://127.0.0.1:5000/liveness', [
+            $response = Http::timeout(30)->post('http://127.0.0.1:5000/liveness', [
                 'frames' => $request->frames,
                 'challenge' => $request->challenge,
+                'flash_active' => $request->flash_active,
             ]);
             return response()->json($response->json(), $response->status());
         } catch (\Exception $e) {
@@ -381,17 +556,245 @@ class AbsenceController extends Controller
         }
     }
 
+    public function proxyChat(Request $request)
+    {
+        $request->validate([
+            'message' => 'required|string|max:1000',
+        ]);
+
+        $userId = $request->input('user_id');
+        if ($userId) {
+            $user = User::find($userId);
+        } else {
+            $user = Auth::user();
+        }
+        
+        $now = Carbon::now('Asia/Jakarta');
+        $today = $now->toDateString();
+        
+        $attendanceInfo = null;
+        $recapInfo = null;
+        if ($user) {
+            $attendance = Attendance::where('user_id', $user->id)->where('date', $today)->orderBy('id', 'desc')->first();
+            $attendanceInfo = $attendance ? [
+                'checked_in' => $attendance->check_in,
+                'checked_out' => $attendance->check_out,
+                'status' => $attendance->status,
+                'shift' => $attendance->shift,
+            ] : null;
+
+            // Generate monthly attendance recap
+            $startOfMonth = Carbon::now('Asia/Jakarta')->startOfMonth()->toDateString();
+            $endOfMonth = Carbon::now('Asia/Jakarta')->endOfMonth()->toDateString();
+            
+            $monthAttendances = Attendance::where('user_id', $user->id)
+                ->whereBetween('date', [$startOfMonth, $endOfMonth])
+                ->get();
+                
+            $totalPresent = $monthAttendances->filter(function ($att) {
+                if ($att->status === 'present' || $att->status === 'late') {
+                    return true;
+                }
+                if ($att->status === 'leave' && !is_null($att->check_in) && !is_null($att->check_out)) {
+                    return true;
+                }
+                return false;
+            })->count();
+            $totalLate = $monthAttendances->where('status', 'late')->count();
+            $totalSick = $monthAttendances->where('status', 'sick')->count();
+            $totalLeave = $monthAttendances->where('status', 'leave')->count();
+            $totalAbsent = $monthAttendances->where('status', 'absent')->count();
+            
+            $history = $monthAttendances->sortByDesc('date')->take(10)->map(function($att) {
+                return [
+                    'date' => Carbon::parse($att->date)->toDateString(),
+                    'check_in' => $att->check_in,
+                    'check_out' => $att->check_out,
+                    'status' => $att->status,
+                    'shift' => $att->shift,
+                ];
+            })->values()->toArray();
+            
+            $recapInfo = [
+                'month' => Carbon::now('Asia/Jakarta')->format('F Y'),
+                'summary' => [
+                    'total_present' => $totalPresent,
+                    'total_late' => $totalLate,
+                    'total_sick' => $totalSick,
+                    'total_leave' => $totalLeave,
+                    'total_absent' => $totalAbsent,
+                    'total_recorded_days' => $monthAttendances->count(),
+                ],
+                'recent_logs' => $history
+            ];
+        }
+
+        // Calculate company stats (context protocol) for HR/Admin users
+        $companyStats = null;
+        $isAdminOrHr = false;
+        if ($user) {
+            $userRoles = [];
+            if ($user->role) {
+                $userRoles[] = strtolower($user->role);
+            }
+            if (method_exists($user, 'getRoleNames')) {
+                foreach ($user->getRoleNames() as $roleName) {
+                    $userRoles[] = strtolower($roleName);
+                }
+            }
+            foreach ($userRoles as $role) {
+                if (str_contains($role, 'admin') || str_contains($role, 'hr')) {
+                    $isAdminOrHr = true;
+                    break;
+                }
+            }
+        }
+
+        if ($user && ($isAdminOrHr || $user->can('attendance'))) {
+            $todayDate = Carbon::today('Asia/Jakarta')->toDateString();
+            
+            // Total employees
+            $totalEmployees = User::count();
+            
+            // Today's attendances
+            $todayAttendances = Attendance::whereDate('date', $todayDate)->with('user')->get();
+            
+            $presentCount = $todayAttendances->where('status', 'present')->count();
+            $lateCount = $todayAttendances->where('status', 'late')->count();
+            $sickCount = $todayAttendances->where('status', 'sick')->count();
+            $leaveCount = $todayAttendances->where('status', 'leave')->count();
+            $absentCount = $todayAttendances->where('status', 'absent')->count();
+            
+            $checkedInUserIds = $todayAttendances->pluck('user_id')->toArray();
+            
+            // List of late employees today
+            $lateList = $todayAttendances->where('status', 'late')->map(function($att) {
+                $name = $att->user ? $att->user->name : 'Unknown';
+                $checkIn = $att->check_in ?? 'Belum';
+                $shift = $att->shift ?? '-';
+                return "$name (Check-in: $checkIn, Shift: $shift)";
+            })->values()->toArray();
+            
+            // List of checked in employees today
+            $checkedInList = $todayAttendances->map(function($att) {
+                $name = $att->user ? $att->user->name : 'Unknown';
+                $checkIn = $att->check_in ?? 'Belum';
+                $checkOut = $att->check_out ?? 'Belum';
+                $shift = $att->shift ?? '-';
+                $status = $att->status === 'late' ? 'Terlambat' : 'Tepat Waktu';
+                return "$name (Check-in: $checkIn, Check-out: $checkOut, Shift: $shift, Status: $status)";
+            })->values()->toArray();
+            
+            // List of not checked in yet today
+            $notCheckedInList = User::whereNotIn('id', $checkedInUserIds)->pluck('name')->toArray();
+            
+            $companyStats = [
+                'date' => $todayDate,
+                'total_employees' => $totalEmployees,
+                'summary' => [
+                    'total_present_on_time' => $presentCount,
+                    'total_late' => $lateCount,
+                    'total_sick' => $sickCount,
+                    'total_leave' => $leaveCount,
+                    'total_absent' => $absentCount,
+                    'total_not_checked_in_yet' => count($notCheckedInList),
+                ],
+                'checked_in_employees_today' => $checkedInList,
+                'late_employees_today' => $lateList,
+                'not_checked_in_employees_today' => $notCheckedInList,
+            ];
+        }
+
+        $settings = Setting::pluck('value', 'key')->toArray();
+        $shiftsInfo = [];
+        for ($i = 1; $i <= 3; $i++) {
+            $shiftsInfo[$i] = [
+                'in_start' => $settings["shift_{$i}_in_start"] ?? null,
+                'in_end' => $settings["shift_{$i}_in_end"] ?? null,
+                'out_start' => $settings["shift_{$i}_out_start"] ?? null,
+                'out_end' => $settings["shift_{$i}_out_end"] ?? null,
+            ];
+        }
+
+        try {
+            $response = Http::timeout(10)->post('http://127.0.0.1:5000/chat', [
+                'message' => $request->message,
+                'user_name' => $user ? $user->name : 'Karyawan',
+                'attendance_info' => $attendanceInfo,
+                'recap_info' => $recapInfo,
+                'company_stats' => $companyStats,
+                'shift_info' => $shiftsInfo,
+                'current_date' => $now->toDateTimeString(),
+            ]);
+
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json([
+                'reply' => 'Maaf, chatbot asisten sedang offline atau mengalami masalah koneksi.'
+            ], 500);
+        }
+    }
+
     public function getRecent()
     {
-        $today = Carbon::today('Asia/Jakarta')->toDateString();
-        $recent = Attendance::with('user')
-            ->whereDate('date', $today)
+        $now = Carbon::now('Asia/Jakarta');
+        $today = $now->toDateString();
+        $yesterday = $now->copy()->subDay()->toDateString();
+
+        // 1. Fetch recent records from today and yesterday
+        $attendances = Attendance::with('user')
+            ->whereIn('date', [$today, $yesterday])
             ->whereNotNull('check_in')
             ->orderBy('updated_at', 'desc')
-            ->take(10)
             ->get();
 
-        return response()->json($recent);
+        // 2. Load shift settings to determine checkout windows
+        $settings = Setting::pluck('value', 'key')->toArray();
+        $defaults = [
+            'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
+            'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
+            'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
+            'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
+            'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
+            'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
+        ];
+        $settings = array_merge($defaults, $settings);
+
+        // 3. Filter the records
+        $filtered = $attendances->filter(function($att) use ($now, $settings) {
+            $shiftNum = $att->shift ?? 1;
+            $inStart = $settings["shift_{$shiftNum}_in_start"] ?? '06:00';
+            $outStart = $settings["shift_{$shiftNum}_out_start"] ?? '14:00';
+            $outEnd = $settings["shift_{$shiftNum}_out_end"] ?? '16:00';
+
+            $checkInDate = Carbon::parse($att->date);
+            $checkOutDate = $checkInDate->copy();
+            
+            // If checkout spans to the next day (cross-day shift)
+            if ($outStart < $inStart || $outEnd < $outStart) {
+                $checkOutDate->addDay();
+            }
+            
+            $checkoutEndThreshold = Carbon::parse($checkOutDate->toDateString() . ' ' . $outEnd, 'Asia/Jakarta');
+
+            // CASE 1: If they have NOT checked out yet
+            if (!$att->check_out) {
+                // Only show them if the checkout window has not passed yet
+                return $now->lessThanOrEqualTo($checkoutEndThreshold);
+            }
+
+            // CASE 2: If they have already checked out
+            // Show them if the checkout was recent (within the last 2 hours)
+            $updatedAt = Carbon::parse($att->updated_at)->timezone('Asia/Jakarta');
+            if ($updatedAt->diffInMinutes($now) <= 120) {
+                return true;
+            }
+
+            return false;
+        });
+
+        // 4. Return the top 10 recent records
+        return response()->json($filtered->take(10)->values());
     }
 
     public function settings()
