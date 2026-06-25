@@ -23,6 +23,7 @@ Route::post('/absence/record', [AbsenceController::class, 'record'])->name('abse
 Route::get('/absence/recent', [AbsenceController::class, 'getRecent'])->name('absence.recent');
 Route::post('/absence/liveness', [AbsenceController::class, 'proxyLiveness'])->name('absence.liveness');
 Route::post('/absence/verify-location', [AbsenceController::class, 'verifyGeolocation'])->name('absence.verify-location');
+Route::get('/absence/ai-query', [AbsenceController::class, 'aiQuery'])->name('absence.ai-query');
 
 Auth::routes();
 Route::get('/otp-resend', [App\Http\Controllers\Auth\OtpController::class, 'resend'])->name('otp.resend');
@@ -49,6 +50,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/settings/absence-time', [SettingsController::class, 'updateAbsenceTime'])->name('settings.update.absence');
     Route::put('/settings/geolocation', [SettingsController::class, 'updateGeolocation'])->name('settings.update.geolocation');
     Route::put('/settings/liveness', [SettingsController::class, 'updateLiveness'])->name('settings.update.liveness');
+    Route::post('/absence/chat', [AbsenceController::class, 'proxyChat'])->name('absence.chat');
     
     Route::get('/users/{id}/picture', [UserController::class, 'showPicture'])->name('users.picture');
     Route::get('/users/{id}/decrypt', [UserController::class, 'decryptImage'])->name('users.decrypt');

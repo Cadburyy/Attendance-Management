@@ -8,3 +8,5 @@ flask
 flask-cors
 pandas
 tf-keras
+python-dotenv
+requests

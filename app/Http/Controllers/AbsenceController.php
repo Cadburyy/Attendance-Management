@@ -657,4 +657,114 @@ class AbsenceController extends Controller
         $users = User::select('name')->orderBy('name', 'asc')->get();
         return response()->json($users);
     }
+
+    public function aiQuery(Request $request)
+    {
+        $ip = $request->ip();
+        \Illuminate\Support\Facades\Log::info('aiQuery requested from IP: ' . $ip);
+        if (!in_array($ip, ['127.0.0.1', '::1'])) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $action = $request->query('action');
+        $today = now()->timezone('Asia/Jakarta')->toDateString();
+        $startOfMonth = now()->timezone('Asia/Jakarta')->startOfMonth()->toDateString();
+        $endOfMonth = now()->timezone('Asia/Jakarta')->endOfMonth()->toDateString();
+
+        switch ($action) {
+            case 'get_today_summary':
+                $records = Attendance::where('date', $today)->get();
+                $totalEmployees = User::count();
+                $presentCount = $records->whereIn('status', ['present', 'late'])->count();
+                return response()->json([
+                    'date' => $today,
+                    'total_employees' => $totalEmployees,
+                    'present' => $records->where('status', 'present')->count(),
+                    'late' => $records->where('status', 'late')->count(),
+                    'sick' => $records->where('status', 'sick')->count(),
+                    'leave' => $records->where('status', 'leave')->count(),
+                    'absent' => $records->where('status', 'absent')->count(),
+                    'not_checked_in' => $totalEmployees - $presentCount,
+                ]);
+
+            case 'get_employees_by_status':
+                $status = $request->query('status', 'present');
+                $records = Attendance::with('user:id,name')
+                    ->where('date', $today)
+                    ->where('status', $status)
+                    ->get()
+                    ->map(fn($r) => [
+                        'name' => $r->user->name ?? 'Unknown',
+                        'check_in' => $r->check_in,
+                        'check_out' => $r->check_out,
+                        'shift' => $r->shift,
+                    ]);
+                return response()->json($records);
+
+            case 'get_employee_monthly_recap':
+                $employeeName = $request->query('employee_name');
+                $user = User::where('name', 'LIKE', "%{$employeeName}%")->first();
+                if (!$user) {
+                    return response()->json(['error' => 'Employee not found']);
+                }
+                $records = Attendance::where('user_id', $user->id)
+                    ->whereBetween('date', [$startOfMonth, $endOfMonth])
+                    ->get();
+                $grouped = $records->groupBy('status')->map->count();
+                return response()->json([
+                    'employee_name' => $user->name,
+                    'month' => now()->timezone('Asia/Jakarta')->format('F Y'),
+                    'present' => $grouped['present'] ?? 0,
+                    'late' => $grouped['late'] ?? 0,
+                    'sick' => $grouped['sick'] ?? 0,
+                    'leave' => $grouped['leave'] ?? 0,
+                    'absent' => $grouped['absent'] ?? 0,
+                    'recent_logs' => $records->sortByDesc('date')->take(5)->map(fn($r) => [
+                        'date' => ($r->date instanceof Carbon) ? $r->date->format('Y-m-d') : Carbon::parse($r->date)->format('Y-m-d'),
+                        'status' => $r->status,
+                        'check_in' => $r->check_in,
+                        'check_out' => $r->check_out,
+                    ])->values(),
+                ]);
+
+            case 'get_shifts':
+                $settings = Setting::pluck('value', 'key')->toArray();
+                $shifts = [];
+                for ($i = 1; $i <= 3; $i++) {
+                    $shifts["shift_{$i}"] = [
+                        'in_start' => $settings["shift_{$i}_in_start"] ?? null,
+                        'in_end' => $settings["shift_{$i}_in_end"] ?? null,
+                        'out_start' => $settings["shift_{$i}_out_start"] ?? null,
+                        'out_end' => $settings["shift_{$i}_out_end"] ?? null,
+                    ];
+                }
+                return response()->json($shifts);
+
+            default:
+                return response()->json(['error' => 'Unknown action'], 400);
+        }
+    }
+
+    public function proxyChat(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->can('override')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $response = Http::timeout(120)->post('http://127.0.0.1:5000/chat', [
+                'message' => $request->input('message'),
+                'conversation_history' => $request->input('conversation_history', []),
+                'user_name' => $user->name,
+                'is_admin' => true,
+                'current_date' => now()->timezone('Asia/Jakarta')->format('Y-m-d'),
+            ]);
+            return response()->json($response->json());
+        } catch (\Exception $e) {
+            return response()->json([
+                'reply' => 'Maaf, server AI sedang tidak aktif. Silakan coba lagi nanti.'
+            ]);
+        }
+    }
 }

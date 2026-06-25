@@ -358,6 +358,157 @@ $faviconUrl = !empty($faviconPath) ? asset('storage/'.str_replace('\\', '/', $fa
         });
     </script>
 
+    @auth
+        @can('override')
+            <!-- Chatbot Widget -->
+            <div id="chatbot-fab" onclick="toggleChatbot()" style="position:fixed;bottom:30px;right:30px;width:60px;height:60px;background:linear-gradient(135deg,#1E3A8A,#3B82F6);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 25px rgba(30,58,138,0.4);z-index:9999;transition:all 0.3s;border:none;">
+                <i class="fas fa-comments" style="color:white;font-size:24px;"></i>
+            </div>
+
+            <div id="chatbot-window" style="display:none;position:fixed;bottom:100px;right:30px;width:380px;height:500px;background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2);z-index:9999;overflow:hidden;flex-direction:column;font-family:inherit;">
+                <!-- Header -->
+                <div style="background:linear-gradient(135deg,#172554,#1E3A8A);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <i class="fas fa-robot" style="color:white;font-size:20px;"></i>
+                        <div>
+                            <div style="color:white;font-weight:700;font-size:15px;line-height:1.2;">Asisten HR AI</div>
+                            <small style="color:rgba(255,255,255,0.7);font-size:11px;">Aktif • openai/gpt-oss-20b</small>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:14px;">
+                        <i class="fas fa-redo-alt" onclick="clearChatHistory()" title="Mulai Sesi Baru" style="color:rgba(255,255,255,0.7);cursor:pointer;font-size:14px;transition:color 0.2s;"></i>
+                        <i class="fas fa-times" onclick="toggleChatbot()" style="color:rgba(255,255,255,0.7);cursor:pointer;font-size:16px;"></i>
+                    </div>
+                </div>
+                
+                <!-- Messages -->
+                <div id="chat-messages" style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;background:#f8fafc;">
+                    <div style="background:#ffffff;border:1px solid #f1f5f9;padding:12px 16px;border-radius:14px;border-top-left-radius:4px;max-width:85%;font-size:14px;color:#334155;box-shadow:0 2px 5px rgba(0,0,0,0.02);line-height:1.5;">
+                        Halo <strong>{{ Auth::user()->name }}</strong>! 👋 Saya asisten pintar absensi. Silakan tanyakan informasi rekap bulanan, status hari ini, atau jadwal shift.
+                    </div>
+                </div>
+                
+                <!-- Input Area -->
+                <div style="padding:14px;border-top:1px solid #e2e8f0;display:flex;gap:10px;background:white;">
+                    <input id="chat-input" type="text" placeholder="Ketik pertanyaan..." onkeypress="if(event.key==='Enter')sendChatMessage()" style="flex:1;padding:10px 16px;border:2px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;transition:border-color 0.2s;">
+                    <button onclick="sendChatMessage()" style="background:linear-gradient(135deg,#1E3A8A,#3B82F6);border:none;color:white;width:42px;height:42px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform 0.2s;box-shadow:0 4px 10px rgba(30,58,138,0.2);">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+
+            <script>
+            let chatHistory = [];
+
+            function toggleChatbot() {
+                const w = document.getElementById('chatbot-window');
+                const fab = document.getElementById('chatbot-fab');
+                if (w.style.display === 'none') {
+                    w.style.display = 'flex';
+                    fab.style.transform = 'scale(0.9) rotate(90deg)';
+                } else {
+                    w.style.display = 'none';
+                    fab.style.transform = 'scale(1) rotate(0deg)';
+                }
+            }
+
+            function clearChatHistory() {
+                chatHistory = [];
+                const messagesDiv = document.getElementById('chat-messages');
+                messagesDiv.innerHTML = `
+                    <div style="background:#ffffff;border:1px solid #f1f5f9;padding:12px 16px;border-radius:14px;border-top-left-radius:4px;max-width:85%;font-size:14px;color:#334155;box-shadow:0 2px 5px rgba(0,0,0,0.02);line-height:1.5;">
+                        Halo <strong>{{ Auth::user()->name }}</strong>! Sesi baru telah dimulai. Memory chat sebelumnya telah di-reset. 👋 Ada yang bisa saya bantu?
+                    </div>
+                `;
+            }
+
+            function formatMarkdown(text) {
+                if (!text) return '';
+                // Escape HTML first
+                let escaped = text
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+
+                // Convert **bold** to <strong>bold</strong>
+                escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                // Convert *italic* to <em>italic</em>
+                escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                
+                // Convert lines starting with "- " or "* " to bullet points
+                let lines = escaped.split('\n');
+                let formattedLines = lines.map(line => {
+                    let trimmed = line.trim();
+                    if (trimmed.startsWith('- ')) {
+                        return `• ${trimmed.substring(2)}`;
+                    }
+                    if (trimmed.startsWith('* ')) {
+                        return `• ${trimmed.substring(2)}`;
+                    }
+                    return line;
+                });
+                
+                return formattedLines.join('<br>');
+            }
+
+            async function sendChatMessage() {
+                const input = document.getElementById('chat-input');
+                const msg = input.value.trim();
+                if (!msg) return;
+                input.value = '';
+
+                const messagesDiv = document.getElementById('chat-messages');
+
+                // User bubble
+                messagesDiv.innerHTML += `<div style="background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:white;padding:12px 16px;border-radius:14px;border-top-right-radius:4px;max-width:85%;align-self:flex-end;font-size:14px;box-shadow:0 4px 10px rgba(30,58,138,0.15);word-break:break-word;line-height:1.5;">${msg}</div>`;
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                // Loading indicator
+                const loadingId = 'loading-' + Date.now();
+                messagesDiv.innerHTML += `<div id="${loadingId}" style="background:#ffffff;border:1px solid #f1f5f9;padding:12px 16px;border-radius:14px;border-top-left-radius:4px;max-width:85%;font-size:14px;color:#94a3b8;box-shadow:0 2px 5px rgba(0,0,0,0.02);"><i class="fas fa-circle-notch fa-spin"></i> Sedang berpikir...</div>`;
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                try {
+                    const res = await fetch('http://127.0.0.1:5000/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            message: msg,
+                            conversation_history: chatHistory,
+                            user_name: '{{ Auth::user()->name }}',
+                            is_admin: {{ Auth::user()->can('override') ? 'true' : 'false' }}
+                        })
+                    });
+                    const data = await res.json();
+                    
+                    const loader = document.getElementById(loadingId);
+                    if (loader) loader.remove();
+
+                    const replyText = data.reply || 'Maaf, terjadi kesalahan.';
+                    
+                    // Push to local session memory
+                    chatHistory.push({ role: 'user', content: msg });
+                    chatHistory.push({ role: 'assistant', content: replyText });
+                    if (chatHistory.length > 20) {
+                        chatHistory = chatHistory.slice(-20);
+                    }
+
+                    // Bot reply bubble (convert Markdown format to HTML)
+                    const replyHtml = formatMarkdown(replyText);
+                    messagesDiv.innerHTML += `<div style="background:#ffffff;border:1px solid #f1f5f9;padding:12px 16px;border-radius:14px;border-top-left-radius:4px;max-width:85%;font-size:14px;color:#334155;box-shadow:0 2px 5px rgba(0,0,0,0.02);word-break:break-word;line-height:1.5;">${replyHtml}</div>`;
+                } catch (e) {
+                    const loader = document.getElementById(loadingId);
+                    if (loader) loader.remove();
+                    messagesDiv.innerHTML += `<div style="background:#fef2f2;padding:12px 16px;border-radius:14px;border-top-left-radius:4px;max-width:85%;font-size:14px;color:#dc2626;">Koneksi gagal. Pastikan server AI aktif.</div>`;
+                }
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+            </script>
+        @endcan
+    @endauth
 
 </body>
 </html>
