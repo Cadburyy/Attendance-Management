@@ -9,6 +9,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\Auth\OtpController;
+
 Route::get('/', function () {
     if (Auth::check()) {
         return redirect()->route('home');
@@ -39,6 +40,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/attendances/{attendance}/approve', [AttendanceController::class, 'approveOverride'])->name('attendances.approve');
     Route::post('/attendances/{attendance}/reject', [AttendanceController::class, 'rejectOverride'])->name('attendances.reject');
     
+    Route::get('/attendances/{id}/picture', [AbsenceController::class, 'showPicture'])->name('attendances.picture');
+
     Route::resource('attendances', AttendanceController::class);
     Route::post('/attendances/bulk-destroy', [AttendanceController::class, 'bulkDestroy'])->name('attendances.bulkDestroy');
     Route::post('/check-in', [AttendanceController::class, 'checkIn'])->name('check-in');

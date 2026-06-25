@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 
 class AbsenceController extends Controller
 {
@@ -24,10 +25,10 @@ class AbsenceController extends Controller
     private function getActiveShiftDetails($now)
     {
         $settings = Setting::pluck('value', 'key')->toArray();
+        $totalShifts = (int)($settings['total_shifts'] ?? 1);
 
-        // Build shifts array
         $shifts = [];
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= $totalShifts; $i++) {
             $shifts[$i] = [
                 'in_start' => $settings["shift_{$i}_in_start"] ?? null,
                 'in_end' => $settings["shift_{$i}_in_end"] ?? null,
@@ -36,7 +37,6 @@ class AbsenceController extends Controller
             ];
         }
 
-        // Fallback: use old keys if shift 1 keys don't exist
         if (empty($shifts[1]['in_start'])) {
             $shifts[1] = [
                 'in_start' => $settings['attendance_in_start'] ?? '06:00',
@@ -44,24 +44,6 @@ class AbsenceController extends Controller
                 'out_start' => $settings['attendance_out_start'] ?? '14:00',
                 'out_end' => $settings['attendance_out_end'] ?? '16:00',
             ];
-        }
-
-        // Apply defaults for other shifts if not set
-        $defaults = [
-            2 => [
-                'in_start' => '14:00', 'in_end' => '15:00',
-                'out_start' => '21:00', 'out_end' => '23:00',
-            ],
-            3 => [
-                'in_start' => '21:00', 'in_end' => '22:00',
-                'out_start' => '05:00', 'out_end' => '07:00',
-            ],
-        ];
-
-        for ($i = 2; $i <= 3; $i++) {
-            if (empty($shifts[$i]['in_start'])) {
-                $shifts[$i] = $defaults[$i];
-            }
         }
 
         $compareTime = $now->format('H:i');
@@ -73,7 +55,6 @@ class AbsenceController extends Controller
             $inStart = $shift['in_start'];
             $outStart = $shift['out_start'];
 
-            // Match active shift based on its working period (from in_start to out_start)
             if ($outStart < $inStart) {
                 if ($compareTime >= $inStart || $compareTime <= $outStart) {
                     $activeShift = $num;
@@ -97,17 +78,16 @@ class AbsenceController extends Controller
     private function getActiveAttendance($userId, $now)
     {
         $today = $now->toDateString();
-        // 1. Try to find today's incomplete attendance record (checked in but not checked out yet)
         $attendance = Attendance::where('user_id', $userId)
             ->where('date', $today)
             ->whereNotNull('check_in')
             ->whereNull('check_out')
             ->first();
+            
         if ($attendance) {
             return $attendance;
         }
 
-        // 2. If no today's record, check yesterday's record for a cross-day shift
         $yesterday = $now->copy()->subDay()->toDateString();
         $yesterdayAttendance = Attendance::where('user_id', $userId)
             ->where('date', $yesterday)
@@ -120,15 +100,6 @@ class AbsenceController extends Controller
             $shiftNum = $yesterdayAttendance->shift;
             if ($shiftNum) {
                 $settings = Setting::pluck('value', 'key')->toArray();
-                $defaults = [
-                    'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
-                    'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
-                    'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
-                    'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
-                    'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
-                    'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
-                ];
-                $settings = array_merge($defaults, $settings);
                 
                 $outStart = $settings["shift_{$shiftNum}_out_start"] ?? null;
                 $outEnd = $settings["shift_{$shiftNum}_out_end"] ?? null;
@@ -152,7 +123,6 @@ class AbsenceController extends Controller
     public function proxyAnalyze(Request $request)
     {
         try {
-            // Cache user embeddings (registration + 5 recent references) to reduce DB load
             $users = Cache::remember('user_face_embeddings', 600, function() {
                 return User::whereNotNull('face_embedding')
                     ->select('id', 'name', 'face_embedding')
@@ -178,7 +148,6 @@ class AbsenceController extends Controller
                     });
             });
 
-            // Proxy the request to AI Server with 30s timeout
             $response = Http::timeout(30)->post('http://127.0.0.1:5000/analyze', [
                 'image' => $request->image,
                 'user_embeddings' => $users
@@ -186,7 +155,6 @@ class AbsenceController extends Controller
 
             $aiData = $response->json();
 
-            // Check if user already attended for the current session
             if (isset($aiData['status']) && $aiData['status'] === 'success' && isset($aiData['user_id'])) {
                 $detectedUser = User::find($aiData['user_id']); 
                 if ($detectedUser) {
@@ -194,7 +162,6 @@ class AbsenceController extends Controller
                     $today = $now->toDateString();
                     $currentTime = $now->format('H:i');
                     
-                    // Check if user has permission to bypass uniform detection
                     if (isset($aiData['has_uniform']) && $aiData['has_uniform'] === false) {
                         if (!$detectedUser->can('bypass-uniform')) {
                             $aiData['status'] = 'no_uniform';
@@ -208,22 +175,13 @@ class AbsenceController extends Controller
                     if ($attendance && $attendance->check_in) {
                         $activeShiftNum = $attendance->shift;
                         $settings = Setting::pluck('value', 'key')->toArray();
-                        $defaults = [
-                            'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
-                            'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
-                            'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
-                            'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
-                            'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
-                            'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
-                        ];
-                        $settings = array_merge($defaults, $settings);
+                        $totalShifts = (int)($settings['total_shifts'] ?? 1);
 
-                        // If shift is empty in DB, fallback to matching check_in time against check-in windows
                         if (!$activeShiftNum) {
-                            $checkInTimeStr = substr($attendance->check_in, 0, 5); // HH:MM
-                            for ($i = 1; $i <= 3; $i++) {
-                                $inStart = $settings["shift_{$i}_in_start"];
-                                $outStart = $settings["shift_{$i}_out_start"];
+                            $checkInTimeStr = substr($attendance->check_in, 0, 5);
+                            for ($i = 1; $i <= $totalShifts; $i++) {
+                                $inStart = $settings["shift_{$i}_in_start"] ?? '00:00';
+                                $outStart = $settings["shift_{$i}_out_start"] ?? '00:00';
                                 if ($outStart < $inStart) {
                                     if ($checkInTimeStr >= $inStart || $checkInTimeStr < $outStart) {
                                         $activeShiftNum = $i;
@@ -242,7 +200,8 @@ class AbsenceController extends Controller
                             $fallbackShift = $this->getActiveShiftDetails($now);
                             $activeShiftNum = $fallbackShift ? $fallbackShift['shift_number'] : 1;
                         }
-                        $outStart = $settings["shift_{$activeShiftNum}_out_start"];
+                        
+                        $outStart = $settings["shift_{$activeShiftNum}_out_start"] ?? '00:00';
                         
                         if ($currentTime < $outStart) {
                             $already = true;
@@ -298,32 +257,21 @@ class AbsenceController extends Controller
         $currentTime = $now->format('H:i:s');
         $compareTime = $now->format('H:i');
 
-        // Look up today's attendance record
         $attendance = $this->getActiveAttendance($user->id, $now);
 
         $status = '';
         $message = '';
 
         if ($attendance && $attendance->check_in) {
-            // CHECK-OUT FLOW (using the locked shift from check-in)
             $activeShiftNum = $attendance->shift;
             $settings = Setting::pluck('value', 'key')->toArray();
-            $defaults = [
-                'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
-                'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
-                'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
-                'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
-                'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
-                'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
-            ];
-            $settings = array_merge($defaults, $settings);
+            $totalShifts = (int)($settings['total_shifts'] ?? 1);
             
-            // If shift is empty in DB, fallback to matching check_in time against check-in windows
             if (!$activeShiftNum) {
-                $checkInTimeStr = substr($attendance->check_in, 0, 5); // HH:MM
-                for ($i = 1; $i <= 3; $i++) {
-                    $inStart = $settings["shift_{$i}_in_start"];
-                    $outStart = $settings["shift_{$i}_out_start"];
+                $checkInTimeStr = substr($attendance->check_in, 0, 5);
+                for ($i = 1; $i <= $totalShifts; $i++) {
+                    $inStart = $settings["shift_{$i}_in_start"] ?? '00:00';
+                    $outStart = $settings["shift_{$i}_out_start"] ?? '00:00';
                     if ($outStart < $inStart) {
                         if ($checkInTimeStr >= $inStart || $checkInTimeStr < $outStart) {
                             $activeShiftNum = $i;
@@ -343,10 +291,10 @@ class AbsenceController extends Controller
                 $activeShiftNum = $fallbackShift ? $fallbackShift['shift_number'] : 1;
             }
 
-            $inStart = $settings["shift_{$activeShiftNum}_in_start"];
-            $inEnd = $settings["shift_{$activeShiftNum}_in_end"];
-            $outStart = $settings["shift_{$activeShiftNum}_out_start"];
-            $outEnd = $settings["shift_{$activeShiftNum}_out_end"];
+            $inStart = $settings["shift_{$activeShiftNum}_in_start"] ?? '00:00';
+            $inEnd = $settings["shift_{$activeShiftNum}_in_end"] ?? '00:00';
+            $outStart = $settings["shift_{$activeShiftNum}_out_start"] ?? '00:00';
+            $outEnd = $settings["shift_{$activeShiftNum}_out_end"] ?? '00:00';
 
             $isCheckoutTime = ($outEnd < $outStart) 
                 ? ($compareTime >= $outStart || $compareTime <= $outEnd)
@@ -382,7 +330,6 @@ class AbsenceController extends Controller
                 }
             }
         } else {
-            // CHECK-IN FLOW (detecting shift based on current time)
             $shift = $this->getActiveShiftDetails($now);
             if (!$shift) {
                 return response()->json([
@@ -438,21 +385,12 @@ class AbsenceController extends Controller
             }
         }
 
-        // Simpan foto bukti jika ada
-        $imagePath = null;
         if ($request->filled('image')) {
-            $image = $request->image; // Base64 string
-            $image = str_replace('data:image/webp;base64,', '', $image);
-            $image = str_replace(' ', '+', $image);
-            
-            $fileName = 'attendance_' . $user->id . '_' . time() . '.webp';
-            $imagePath = 'attendance_photos/' . $fileName;
-            
-            \Illuminate\Support\Facades\Storage::disk('public')->put($imagePath, base64_decode($image));
-            $attendance->update(['image' => $imagePath]);
+            // Encrypt the base64 image using the KEK/DEK architecture
+            $secureImagePayload = $this->encryptWithDEK($request->image);
+            $attendance->update(['image' => $secureImagePayload]);
         }
 
-        // Extract face embedding from attendance photo and save as reference
         if ($request->filled('image') && $user && in_array($status, ['check-in', 'check-out'])) {
             try {
                 $embeddingResponse = Http::timeout(15)->post('http://127.0.0.1:5000/represent', [
@@ -461,15 +399,13 @@ class AbsenceController extends Controller
 
                 if ($embeddingResponse->successful() && isset($embeddingResponse->json()['embedding'])) {
                     $source = $request->user_id ? 'ai_attendance' : 'manual_attendance';
-                    // Save as face reference
                     \App\Models\FaceReference::create([
                         'user_id' => $user->id,
                         'embedding' => $embeddingResponse->json()['embedding'],
                         'source' => $source,
-                        'image_path' => $imagePath,
+                        'image_path' => null, 
                     ]);
 
-                    // Prune: keep only the 5 most recent references per user
                     $oldRefs = \App\Models\FaceReference::where('user_id', $user->id)
                         ->orderBy('created_at', 'desc')
                         ->skip(5)
@@ -480,12 +416,10 @@ class AbsenceController extends Controller
                         \App\Models\FaceReference::whereIn('id', $oldRefs)->delete();
                     }
 
-                    // Clear the embedding cache so next scan uses updated data
                     Cache::forget('user_face_embeddings');
                 }
             } catch (\Exception $e) {
                 \Log::warning("Face reference extraction failed: " . $e->getMessage());
-                // Non-critical — don't fail the attendance recording
             }
         }
 
@@ -507,7 +441,6 @@ class AbsenceController extends Controller
 
         $settings = Setting::pluck('value', 'key')->toArray();
 
-        // If geolocation is disabled, always allow
         if (empty($settings['geolocation_enabled']) || $settings['geolocation_enabled'] == '0') {
             return response()->json(['status' => 'allowed', 'message' => 'Geolocation check is disabled.']);
         }
@@ -516,8 +449,7 @@ class AbsenceController extends Controller
         $officeLng = (float)($settings['office_longitude'] ?? 0);
         $maxRadius = (int)($settings['office_radius'] ?? 100);
 
-        // Haversine formula to calculate distance in meters
-        $earthRadius = 6371000; // meters
+        $earthRadius = 6371000;
         $dLat = deg2rad($request->latitude - $officeLat);
         $dLng = deg2rad($request->longitude - $officeLng);
         $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($officeLat)) * cos(deg2rad($request->latitude)) * sin($dLng/2) * sin($dLng/2);
@@ -556,33 +488,20 @@ class AbsenceController extends Controller
         }
     }
 
-
     public function getRecent()
     {
         $now = Carbon::now('Asia/Jakarta');
         $today = $now->toDateString();
         $yesterday = $now->copy()->subDay()->toDateString();
 
-        // 1. Fetch recent records from today and yesterday
         $attendances = Attendance::with('user')
             ->whereIn('date', [$today, $yesterday])
             ->whereNotNull('check_in')
             ->orderBy('updated_at', 'desc')
             ->get();
 
-        // 2. Load shift settings to determine checkout windows
         $settings = Setting::pluck('value', 'key')->toArray();
-        $defaults = [
-            'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
-            'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
-            'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
-            'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
-            'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
-            'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
-        ];
-        $settings = array_merge($defaults, $settings);
 
-        // 3. Filter the records
         $filtered = $attendances->filter(function($att) use ($now, $settings) {
             $shiftNum = $att->shift ?? 1;
             $inStart = $settings["shift_{$shiftNum}_in_start"] ?? '06:00';
@@ -592,21 +511,16 @@ class AbsenceController extends Controller
             $checkInDate = Carbon::parse($att->date);
             $checkOutDate = $checkInDate->copy();
             
-            // If checkout spans to the next day (cross-day shift)
             if ($outStart < $inStart || $outEnd < $outStart) {
                 $checkOutDate->addDay();
             }
             
             $checkoutEndThreshold = Carbon::parse($checkOutDate->toDateString() . ' ' . $outEnd, 'Asia/Jakarta');
 
-            // CASE 1: If they have NOT checked out yet
             if (!$att->check_out) {
-                // Only show them if the checkout window has not passed yet
                 return $now->lessThanOrEqualTo($checkoutEndThreshold);
             }
 
-            // CASE 2: If they have already checked out
-            // Show them if the checkout was recent (within the last 2 hours)
             $updatedAt = Carbon::parse($att->updated_at)->timezone('Asia/Jakarta');
             if ($updatedAt->diffInMinutes($now) <= 120) {
                 return true;
@@ -615,7 +529,6 @@ class AbsenceController extends Controller
             return false;
         });
 
-        // 4. Return the top 10 recent records
         return response()->json($filtered->take(10)->values());
     }
 
@@ -729,8 +642,9 @@ class AbsenceController extends Controller
 
             case 'get_shifts':
                 $settings = Setting::pluck('value', 'key')->toArray();
+                $totalShifts = (int)($settings['total_shifts'] ?? 1);
                 $shifts = [];
-                for ($i = 1; $i <= 3; $i++) {
+                for ($i = 1; $i <= $totalShifts; $i++) {
                     $shifts["shift_{$i}"] = [
                         'in_start' => $settings["shift_{$i}_in_start"] ?? null,
                         'in_end' => $settings["shift_{$i}_in_end"] ?? null,
@@ -766,5 +680,91 @@ class AbsenceController extends Controller
                 'reply' => 'Maaf, server AI sedang tidak aktif. Silakan coba lagi nanti.'
             ]);
         }
+    }
+
+    public function showPicture($id)
+    {
+        $attendance = Attendance::findOrFail($id);
+
+        if (!$attendance->image) {
+            abort(404, 'Image not found.');
+        }
+
+        $payload = json_decode($attendance->image, true);
+
+        // Pastikan JSON memiliki semua data yang dibutuhkan
+        if (!$payload || !isset($payload['data'], $payload['iv'], $payload['edek'], $payload['dek_iv'])) {
+            abort(400, 'Invalid encrypted image payload.');
+        }
+
+        // 1. Setup KEK (Master Key) menggunakan AM2026
+        $secretString = env('CUSTOM_DECRYPTION_KEY', 'AM2026');
+        $kek = hash('sha256', $secretString, true);
+
+        // 2. Buka Brankas Master untuk mengambil Kunci Loker (DEK)
+        $dekIv = base64_decode($payload['dek_iv']);
+        $dek = openssl_decrypt($payload['edek'], 'aes-256-cbc', $kek, 0, $dekIv);
+
+        if ($dek === false) {
+            abort(403, 'Failed to decrypt KEK. Incorrect master key.');
+        }
+
+        // 3. Buka Gembok Gambar menggunakan Kunci Loker (DEK)
+        $iv = base64_decode($payload['iv']);
+        $decryptedBase64 = openssl_decrypt($payload['data'], 'aes-256-cbc', $dek, 0, $iv);
+
+        if ($decryptedBase64 === false) {
+            abort(403, 'Failed to decrypt picture data.');
+        }
+
+        // Bersihkan prefix base64 jika ada (karena dikirim lewat API kamera)
+        $cleanBase64 = preg_replace('#^data:image/[^;]+;base64,#', '', $decryptedBase64);
+        $cleanBase64 = str_replace(' ', '+', $cleanBase64);
+        
+        $imageBinary = base64_decode($cleanBase64);
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->buffer($imageBinary) ?: 'image/jpeg';
+
+        if (ob_get_length()) {
+            ob_end_clean();
+        }
+
+        return response($imageBinary)->header('Content-Type', $mimeType);
+    }
+
+    /**
+     * KEK / DEK Encryption Architecture
+     * Generates a unique DEK per transaction, encrypts the data with AES-256-CBC,
+     * and encrypts the DEK with the application's Master KEK.
+     */
+    private function encryptWithDEK($data)
+    {
+        // 1. Setup KEK (Master Key) menggunakan AM2026
+        $secretString = env('CUSTOM_DECRYPTION_KEY', 'AM2026');
+        $kek = hash('sha256', $secretString, true);
+
+        // 2. Generate Kunci Loker (DEK) - 32 bytes
+        $dek = random_bytes(32); 
+        
+        // 3. Generate Bumbu Acak (IV) untuk Gambar
+        $iv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+
+        // 4. Gembok Gambar menggunakan DEK
+        $encryptedData = openssl_encrypt($data, 'aes-256-cbc', $dek, 0, $iv);
+
+        // 5. Generate Bumbu Acak (IV) untuk DEK
+        $dekIv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+
+        // 6. Gembok Kunci Loker (DEK) menggunakan KEK
+        $encryptedDek = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
+
+        // 7. Bungkus semuanya jadi satu paket JSON
+        return json_encode([
+            'data' => $encryptedData,
+            'iv' => base64_encode($iv),
+            'edek' => $encryptedDek, 
+            'dek_iv' => base64_encode($dekIv)
+        ]);
     }
 }
