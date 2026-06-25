@@ -175,6 +175,7 @@
         margin-bottom: 24px;
         border-bottom: 2px solid #e5e7eb;
         padding-bottom: 8px;
+        flex-wrap: wrap;
     }
 
     .shift-tab {
@@ -198,6 +199,17 @@
         color: white;
     }
 
+    .add-shift-btn {
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        color: #0d3b66;
+    }
+
+    .add-shift-btn:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+    }
+
     .shift-panel {
         display: none;
         animation: fadeIn 0.3s ease-out;
@@ -207,7 +219,6 @@
         display: block;
     }
 
-    /* Switch Style */
     .switch {
         position: relative;
         display: inline-block;
@@ -294,7 +305,6 @@
         </div>
     @endif
 
-    <!-- Section 1: Edit Appearance -->
     <div class="settings-card">
         <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Edit Appearance</h3>
         <form method="POST" action="{{ route('settings.update.appearance') }}" enctype="multipart/form-data">
@@ -370,99 +380,55 @@
         </form>
     </div>
 
-    <!-- Section 2: Edit Absence Time (3 Shifts) -->
     <div class="settings-card">
-        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Edit Absence Time (3 Shifts)</h3>
+        <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Edit Absence Time</h3>
         
-        <div class="shift-tabs">
-            <button type="button" class="shift-tab active" id="shift-tab-1" onclick="showShift(1)">Shift 1 (Morning)</button>
-            <button type="button" class="shift-tab" id="shift-tab-2" onclick="showShift(2)">Shift 2 (Afternoon)</button>
-            <button type="button" class="shift-tab" id="shift-tab-3" onclick="showShift(3)">Shift 3 (Night)</button>
+        <div class="shift-tabs" id="shift-tabs-container">
+            @foreach($shifts as $index => $shift)
+                <button type="button" class="shift-tab shift-tab-dynamic {{ $loop->first ? 'active' : '' }}" id="shift-tab-{{ $index }}" onclick="showShift({{ $index }})">Shift {{ $index }}</button>
+            @endforeach
+            <button type="button" class="shift-tab add-shift-btn" onclick="addShift()">+ Add Shift</button>
         </div>
 
         <form method="POST" action="{{ route('settings.update.absence') }}">
             @csrf
             @method('PUT')
 
-            <!-- Shift 1 -->
-            <div class="shift-panel active" id="shift-panel-1">
-                <h5 class="mb-3 font-weight-bold" style="color: #475569;">Shift 1 Configuration</h5>
-                <div class="row g-4">
-                    <div class="col-md-3">
-                        <label for="shift_1_in_start" class="form-label-custom">Check-in Start Time</label>
-                        <input type="time" name="shift_1_in_start" id="shift_1_in_start" class="input-custom"
-                               value="{{ old('shift_1_in_start', $settings['shift_1_in_start']) }}">
+            <div id="shift-panels-container">
+                @foreach($shifts as $index => $shift)
+                    <div class="shift-panel shift-panel-dynamic {{ $loop->first ? 'active' : '' }}" id="shift-panel-{{ $index }}">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="font-weight-bold shift-title" style="color: #475569;">Shift {{ $index }} Configuration</h5>
+                            @if($index > 1)
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-shift-btn" onclick="removeShift({{ $index }})" style="border-radius: 6px; padding: 4px 12px; font-size: 13px;">
+                                    <i class="fas fa-trash"></i> Remove
+                                </button>
+                            @endif
+                        </div>
+                        <div class="row g-4">
+                            <div class="col-md-3">
+                                <label class="form-label-custom">Check-in Start Time</label>
+                                <input type="time" name="shifts[{{ $index }}][in_start]" class="input-custom"
+                                       value="{{ old('shifts.'.$index.'.in_start', $shift['in_start']) }}" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label-custom">Check-in Late Boundary</label>
+                                <input type="time" name="shifts[{{ $index }}][in_end]" class="input-custom"
+                                       value="{{ old('shifts.'.$index.'.in_end', $shift['in_end']) }}" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label-custom">Check-out Start Time</label>
+                                <input type="time" name="shifts[{{ $index }}][out_start]" class="input-custom"
+                                       value="{{ old('shifts.'.$index.'.out_start', $shift['out_start']) }}" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label-custom">Check-out End Time</label>
+                                <input type="time" name="shifts[{{ $index }}][out_end]" class="input-custom"
+                                       value="{{ old('shifts.'.$index.'.out_end', $shift['out_end']) }}" required>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <label for="shift_1_in_end" class="form-label-custom">Check-in Late Boundary</label>
-                        <input type="time" name="shift_1_in_end" id="shift_1_in_end" class="input-custom"
-                               value="{{ old('shift_1_in_end', $settings['shift_1_in_end']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_1_out_start" class="form-label-custom">Check-out Start Time</label>
-                        <input type="time" name="shift_1_out_start" id="shift_1_out_start" class="input-custom"
-                               value="{{ old('shift_1_out_start', $settings['shift_1_out_start']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_1_out_end" class="form-label-custom">Check-out End Time</label>
-                        <input type="time" name="shift_1_out_end" id="shift_1_out_end" class="input-custom"
-                               value="{{ old('shift_1_out_end', $settings['shift_1_out_end']) }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Shift 2 -->
-            <div class="shift-panel" id="shift-panel-2">
-                <h5 class="mb-3 font-weight-bold" style="color: #475569;">Shift 2 Configuration</h5>
-                <div class="row g-4">
-                    <div class="col-md-3">
-                        <label for="shift_2_in_start" class="form-label-custom">Check-in Start Time</label>
-                        <input type="time" name="shift_2_in_start" id="shift_2_in_start" class="input-custom"
-                               value="{{ old('shift_2_in_start', $settings['shift_2_in_start']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_2_in_end" class="form-label-custom">Check-in Late Boundary</label>
-                        <input type="time" name="shift_2_in_end" id="shift_2_in_end" class="input-custom"
-                               value="{{ old('shift_2_in_end', $settings['shift_2_in_end']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_2_out_start" class="form-label-custom">Check-out Start Time</label>
-                        <input type="time" name="shift_2_out_start" id="shift_2_out_start" class="input-custom"
-                               value="{{ old('shift_2_out_start', $settings['shift_2_out_start']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_2_out_end" class="form-label-custom">Check-out End Time</label>
-                        <input type="time" name="shift_2_out_end" id="shift_2_out_end" class="input-custom"
-                               value="{{ old('shift_2_out_end', $settings['shift_2_out_end']) }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Shift 3 -->
-            <div class="shift-panel" id="shift-panel-3">
-                <h5 class="mb-3 font-weight-bold" style="color: #475569;">Shift 3 Configuration</h5>
-                <div class="row g-4">
-                    <div class="col-md-3">
-                        <label for="shift_3_in_start" class="form-label-custom">Check-in Start Time</label>
-                        <input type="time" name="shift_3_in_start" id="shift_3_in_start" class="input-custom"
-                               value="{{ old('shift_3_in_start', $settings['shift_3_in_start']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_3_in_end" class="form-label-custom">Check-in Late Boundary</label>
-                        <input type="time" name="shift_3_in_end" id="shift_3_in_end" class="input-custom"
-                               value="{{ old('shift_3_in_end', $settings['shift_3_in_end']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_3_out_start" class="form-label-custom">Check-out Start Time</label>
-                        <input type="time" name="shift_3_out_start" id="shift_3_out_start" class="input-custom"
-                               value="{{ old('shift_3_out_start', $settings['shift_3_out_start']) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="shift_3_out_end" class="form-label-custom">Check-out End Time</label>
-                        <input type="time" name="shift_3_out_end" id="shift_3_out_end" class="input-custom"
-                               value="{{ old('shift_3_out_end', $settings['shift_3_out_end']) }}">
-                    </div>
-                </div>
+                @endforeach
             </div>
 
             <div class="col-12 text-end mt-4">
@@ -473,7 +439,6 @@
         </form>
     </div>
 
-    <!-- Section 3: Geolocation Settings -->
     <div class="settings-card">
         <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Geolocation Settings</h3>
         <form method="POST" action="{{ route('settings.update.geolocation') }}">
@@ -527,7 +492,6 @@
         </form>
     </div>
 
-    <!-- Section 4: Liveness Settings -->
     <div class="settings-card mt-4">
         <h3 class="mb-4" style="font-weight: 700; color: #0d3b66;">Liveness Detection Settings</h3>
         <form method="POST" action="{{ route('settings.update.liveness') }}">
@@ -625,12 +589,120 @@
         toggleLivenessSubSettings();
     });
 
+    let shiftCounter = {{ count($shifts) }};
+
     function showShift(num) {
-        document.querySelectorAll('.shift-tab').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.shift-panel').forEach(panel => panel.classList.remove('active'));
+        document.querySelectorAll('.shift-tab-dynamic').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.shift-panel-dynamic').forEach(panel => panel.classList.remove('active'));
         
-        document.getElementById('shift-tab-' + num).classList.add('active');
-        document.getElementById('shift-panel-' + num).classList.add('active');
+        const tab = document.getElementById('shift-tab-' + num);
+        const panel = document.getElementById('shift-panel-' + num);
+        
+        if(tab) tab.classList.add('active');
+        if(panel) panel.classList.add('active');
+    }
+
+    function addShift() {
+        shiftCounter++;
+        const newIndex = shiftCounter;
+        
+        const tabBtn = document.createElement('button');
+        tabBtn.type = 'button';
+        tabBtn.className = 'shift-tab shift-tab-dynamic';
+        tabBtn.id = `shift-tab-${newIndex}`;
+        tabBtn.innerText = `Shift ${newIndex}`;
+        tabBtn.setAttribute('onclick', `showShift(${newIndex})`);
+        
+        const tabsContainer = document.getElementById('shift-tabs-container');
+        const addBtn = tabsContainer.querySelector('.add-shift-btn');
+        tabsContainer.insertBefore(tabBtn, addBtn);
+        
+        const panel = document.createElement('div');
+        panel.className = 'shift-panel shift-panel-dynamic';
+        panel.id = `shift-panel-${newIndex}`;
+        
+        panel.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="font-weight-bold shift-title" style="color: #475569;">Shift ${newIndex} Configuration</h5>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-shift-btn" onclick="removeShift(${newIndex})" style="border-radius: 6px; padding: 4px 12px; font-size: 13px;">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
+            </div>
+            <div class="row g-4">
+                <div class="col-md-3">
+                    <label class="form-label-custom">Check-in Start Time</label>
+                    <input type="time" name="shifts[${newIndex}][in_start]" class="input-custom" value="00:00" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label-custom">Check-in Late Boundary</label>
+                    <input type="time" name="shifts[${newIndex}][in_end]" class="input-custom" value="00:00" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label-custom">Check-out Start Time</label>
+                    <input type="time" name="shifts[${newIndex}][out_start]" class="input-custom" value="00:00" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label-custom">Check-out End Time</label>
+                    <input type="time" name="shifts[${newIndex}][out_end]" class="input-custom" value="00:00" required>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('shift-panels-container').appendChild(panel);
+        
+        renumberShifts();
+        showShift(document.querySelectorAll('.shift-tab-dynamic').length);
+    }
+
+    function removeShift(num) {
+        const tabs = document.querySelectorAll('.shift-tab-dynamic');
+        if(tabs.length <= 1) return; 
+        
+        const tabToRemove = document.getElementById(`shift-tab-${num}`);
+        const panelToRemove = document.getElementById(`shift-panel-${num}`);
+        
+        if(tabToRemove) tabToRemove.remove();
+        if(panelToRemove) panelToRemove.remove();
+        
+        renumberShifts();
+    }
+
+    function renumberShifts() {
+        const tabs = document.querySelectorAll('.shift-tab-dynamic');
+        const panels = document.querySelectorAll('.shift-panel-dynamic');
+        
+        tabs.forEach((tab, index) => {
+            const shiftNum = index + 1;
+            tab.innerText = 'Shift ' + shiftNum;
+            tab.setAttribute('onclick', `showShift(${shiftNum})`);
+            tab.id = `shift-tab-${shiftNum}`;
+        });
+
+        panels.forEach((panel, index) => {
+            const shiftNum = index + 1;
+            panel.id = `shift-panel-${shiftNum}`;
+            const title = panel.querySelector('.shift-title');
+            if(title) title.innerText = 'Shift ' + shiftNum + ' Configuration';
+            
+            const removeBtn = panel.querySelector('.remove-shift-btn');
+            if(removeBtn) {
+                removeBtn.setAttribute('onclick', `removeShift(${shiftNum})`);
+            }
+
+            const inputs = panel.querySelectorAll('input[type="time"]');
+            inputs.forEach(input => {
+                const nameParts = input.name.split(']['); 
+                if(nameParts.length === 2) {
+                    const field = nameParts[1].replace(']', '');
+                    input.name = `shifts[${shiftNum}][${field}]`;
+                }
+            });
+        });
+        
+        const activeTab = document.querySelector('.shift-tab-dynamic.active');
+        if (!activeTab && tabs.length > 0) {
+            showShift(1);
+        }
     }
 
     function getCurrentLocation() {

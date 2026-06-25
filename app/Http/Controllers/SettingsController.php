@@ -23,26 +23,13 @@ class SettingsController extends Controller
             'font' => 'Nunito',
             'logo_path' => null,
             'favicon_path' => null,
-            // Attendance Defaults
-            'attendance_in_start' => '07:00',
-            'attendance_in_end' => '09:00',
-            'attendance_out_start' => '16:00',
-            'attendance_out_end' => '18:00',
-            // Shift 1 (Morning)
+            'total_shifts' => '1',
             'shift_1_in_start' => '06:00', 'shift_1_in_end' => '08:00',
             'shift_1_out_start' => '14:00', 'shift_1_out_end' => '16:00',
-            // Shift 2 (Afternoon)
-            'shift_2_in_start' => '14:00', 'shift_2_in_end' => '15:00',
-            'shift_2_out_start' => '21:00', 'shift_2_out_end' => '23:00',
-            // Shift 3 (Night)
-            'shift_3_in_start' => '21:00', 'shift_3_in_end' => '22:00',
-            'shift_3_out_start' => '05:00', 'shift_3_out_end' => '07:00',
-            // Geolocation settings
             'office_latitude' => '-6.200000',
             'office_longitude' => '106.816666',
             'office_radius' => '100',
             'geolocation_enabled' => '0',
-            // Liveness settings
             'liveness_enabled' => '1',
             'liveness_blink' => '1',
             'liveness_turn_left' => '1',
@@ -51,7 +38,18 @@ class SettingsController extends Controller
 
         $settings = array_merge($defaults, $settings);
 
-        return view('settings.index', compact('settings'));
+        $totalShifts = (int)($settings['total_shifts'] ?? 1);
+        $shifts = [];
+        for ($i = 1; $i <= $totalShifts; $i++) {
+            $shifts[$i] = [
+                'in_start' => $settings["shift_{$i}_in_start"] ?? '00:00',
+                'in_end' => $settings["shift_{$i}_in_end"] ?? '00:00',
+                'out_start' => $settings["shift_{$i}_out_start"] ?? '00:00',
+                'out_end' => $settings["shift_{$i}_out_end"] ?? '00:00',
+            ];
+        }
+
+        return view('settings.index', compact('settings', 'shifts'));
     }
 
     public function updateAppearance(Request $request)
@@ -93,20 +91,33 @@ class SettingsController extends Controller
 
     public function updateAbsenceTime(Request $request)
     {
-        $rules = [];
-        for ($i = 1; $i <= 3; $i++) {
-            $rules["shift_{$i}_in_start"] = 'required|date_format:H:i';
-            $rules["shift_{$i}_in_end"] = 'required|date_format:H:i';
-            $rules["shift_{$i}_out_start"] = 'required|date_format:H:i';
-            $rules["shift_{$i}_out_end"] = 'required|date_format:H:i';
-        }
-        $request->validate($rules);
+        $request->validate([
+            'shifts' => 'required|array|min:1',
+            'shifts.*.in_start' => 'required|date_format:H:i',
+            'shifts.*.in_end' => 'required|date_format:H:i',
+            'shifts.*.out_start' => 'required|date_format:H:i',
+            'shifts.*.out_end' => 'required|date_format:H:i',
+        ]);
 
-        for ($i = 1; $i <= 3; $i++) {
-            $this->putSetting("shift_{$i}_in_start", $request->input("shift_{$i}_in_start"));
-            $this->putSetting("shift_{$i}_in_end", $request->input("shift_{$i}_in_end"));
-            $this->putSetting("shift_{$i}_out_start", $request->input("shift_{$i}_out_start"));
-            $this->putSetting("shift_{$i}_out_end", $request->input("shift_{$i}_out_end"));
+        $totalShifts = count($request->shifts);
+        $this->putSetting('total_shifts', $totalShifts);
+
+        $i = 1;
+        foreach ($request->shifts as $shift) {
+            $this->putSetting("shift_{$i}_in_start", $shift['in_start']);
+            $this->putSetting("shift_{$i}_in_end", $shift['in_end']);
+            $this->putSetting("shift_{$i}_out_start", $shift['out_start']);
+            $this->putSetting("shift_{$i}_out_end", $shift['out_end']);
+            $i++;
+        }
+
+        for ($j = $totalShifts + 1; $j <= 20; $j++) {
+            Setting::whereIn('key', [
+                "shift_{$j}_in_start",
+                "shift_{$j}_in_end",
+                "shift_{$j}_out_start",
+                "shift_{$j}_out_end"
+            ])->delete();
         }
 
         cache()->forget('app_settings');
@@ -119,7 +130,7 @@ class SettingsController extends Controller
         $request->validate([
             'office_latitude' => 'required|numeric|between:-90,90',
             'office_longitude' => 'required|numeric|between:-180,180',
-            'office_radius' => 'required|integer|min:10|max:5000', // meters
+            'office_radius' => 'required|integer|min:10|max:5000',
             'geolocation_enabled' => 'required|boolean',
         ]);
 
