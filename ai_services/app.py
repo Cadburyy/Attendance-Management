@@ -6,6 +6,9 @@ import json
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import requests as http_requests
+from dotenv import load_dotenv
+load_dotenv()
 from ultralytics import YOLO
 from deepface import DeepFace
 import urllib.request
@@ -423,6 +426,206 @@ def analyze():
         print(f"Error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+
+# ============================================
+# CHATBOT WITH FUNCTION CALLING (MCP-STYLE)
+# ============================================
+
+LARAVEL_BASE_URL = "http://127.0.0.1:8000"
+
+def safe_print(*args, **kwargs):
+    try:
+        msg = " ".join(str(arg) for arg in args)
+        print(msg, **kwargs)
+    except UnicodeEncodeError:
+        try:
+            clean_msg = msg.encode('ascii', 'ignore').decode('ascii')
+            print(clean_msg, **kwargs)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+TOOL_DEFINITIONS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_today_summary",
+            "description": "Get today's attendance summary: total present, late, sick, leave, absent counts.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_employees_by_status",
+            "description": "Get list of employee names filtered by attendance status for today. Valid statuses: present, late, sick, leave, absent.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["present", "late", "sick", "leave", "absent"],
+                        "description": "The attendance status to filter by"
+                    }
+                },
+                "required": ["status"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_employee_monthly_recap",
+            "description": "Get monthly attendance recap for a specific employee by name.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "employee_name": {
+                        "type": "string",
+                        "description": "The employee's name (or partial name)"
+                    }
+                },
+                "required": ["employee_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_shifts",
+            "description": "Get the company's shift schedule configuration (check-in/check-out times for all shifts).",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    }
+]
+
+def execute_tool(tool_name, tool_args, is_admin):
+    """Calls the Laravel ai-query endpoint to get data."""
+    try:
+        safe_print(f"Executing tool {tool_name} with args: {tool_args}")
+        if not isinstance(tool_args, dict):
+            tool_args = {}
+
+        if tool_name in ['get_today_summary', 'get_employees_by_status'] and not is_admin:
+            return json.dumps({"error": "Anda tidak memiliki izin untuk mengakses data ini. Hanya Admin/HR yang bisa melihat data seluruh karyawan."})
+
+        params = {"action": tool_name}
+        if tool_name == "get_employees_by_status":
+            params["status"] = tool_args.get("status", "present")
+        elif tool_name == "get_employee_monthly_recap":
+            params["employee_name"] = tool_args.get("employee_name", "")
+
+        response = http_requests.get(f"{LARAVEL_BASE_URL}/absence/ai-query", params=params, timeout=10)
+        result_text = json.dumps(response.json(), ensure_ascii=False)
+        safe_print(f"Tool {tool_name} result: {result_text}")
+        return result_text
+    except Exception as e:
+        safe_print(f"Error in execute_tool: {str(e)}")
+        return json.dumps({"error": f"Failed to query data: {str(e)}"})
+
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    """Chatbot endpoint with function calling loop."""
+    try:
+        data = request.json
+        user_message = data.get('message', '')
+        conversation_history = data.get('conversation_history', [])
+        user_name = data.get('user_name', 'User')
+        is_admin = data.get('is_admin', False)
+        current_date = data.get('current_date', datetime.now().strftime('%Y-%m-%d'))
+
+        api_key = os.environ.get('OPENROUTER_API_KEY', '')
+        if not api_key:
+            return jsonify({'reply': 'API Key belum dikonfigurasi.'})
+
+        system_prompt = f"""Kamu adalah asisten HR pintar untuk sistem absensi perusahaan.
+Hari ini: {current_date}. Nama pengguna: {user_name}. Role: {'Admin/HR' if is_admin else 'Karyawan'}.
+
+Aturan Utama:
+- Jawab dalam Bahasa Indonesia.
+- Jawab dengan RINGKAS, padat, langsung to-the-point, dan HINDARI kalimat basa-basi pembuka/penutup yang panjang.
+- Gunakan tools yang tersedia untuk mengambil data jika diperlukan. JANGAN mengarang data.
+- Jika pengguna bukan AdminIT dan HR, hanya izinkan mereka melihat data diri sendiri (get_employee_monthly_recap).
+- Gunakan format bullet points untuk menampilkan daftar nama/data agar mudah dibaca cepat.
+- Batasi panjang total jawaban Anda hingga maksimum 2-3 paragraf pendek atau sekitar 300-400 karakter."""
+
+        # Keep only the last 20 messages in conversation history
+        trimmed_history = conversation_history[-20:]
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in trimmed_history:
+            messages.append({
+                "role": msg.get("role"),
+                "content": msg.get("content")
+            })
+        messages.append({"role": "user", "content": user_message})
+
+        # Tool calling loop (max 5 rounds)
+        for round_idx in range(5):
+            safe_print(f"Round {round_idx + 1}: Calling OpenRouter...")
+            response = http_requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "openai/gpt-oss-20b:free",
+                    "messages": messages,
+                    "tools": TOOL_DEFINITIONS,
+                    "tool_choice": "auto"
+                },
+                timeout=30
+            )
+
+            result = response.json()
+            if 'error' in result:
+                safe_print(f"OpenRouter Error: {result['error']}")
+                return jsonify({'reply': f"OpenRouter Error: {result['error'].get('message', 'Unknown error')}"})
+                
+            choices = result.get('choices', [])
+            if not choices:
+                return jsonify({'reply': 'Maaf, tidak menerima respon dari model AI.'})
+                
+            choice = choices[0]
+            msg = choice.get('message', {})
+
+            # Clean any None value for content in message to prevent OpenRouter 400 bad request error on subsequent requests
+            if msg.get('content') is None:
+                msg['content'] = ""
+
+            # If the LLM wants to call a tool
+            if msg.get('tool_calls'):
+                messages.append(msg)
+                for tool_call in msg['tool_calls']:
+                    fn_name = tool_call['function']['name']
+                    fn_args_str = tool_call['function'].get('arguments', '{}')
+                    try:
+                        fn_args = json.loads(fn_args_str) if fn_args_str else {}
+                    except Exception as parse_err:
+                        safe_print(f"Error parsing arguments JSON: {parse_err}")
+                        fn_args = {}
+                    
+                    tool_result = execute_tool(fn_name, fn_args, is_admin)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call['id'],
+                        "content": tool_result
+                    })
+                continue  # Loop back to send tool results to LLM
+
+            # Final text response
+            reply = msg.get('content', 'Maaf, saya tidak bisa memproses permintaan ini.')
+            safe_print(f"Final reply: {reply}")
+            return jsonify({'reply': reply})
+
+        return jsonify({'reply': 'Maaf, terlalu banyak putaran pemanggilan fungsi.'})
+
+    except Exception as e:
+        safe_print(f"Chat error: {str(e)}")
+        return jsonify({'reply': f'Terjadi kesalahan: {str(e)}'})
 
 
 @app.route('/health', methods=['GET'])

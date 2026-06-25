@@ -28,9 +28,9 @@ class LoginController extends Controller
     private function isOutsideWorkingHours()
     {
         // RETURN TRUE FOR TESTING (Always triggers OTP)
-        /*
+        
         return true; 
-         */
+         
          // UNCOMMENT THIS FOR REAL PRODUCTION LOGIC:
          
         $now = now()->timezone('Asia/Jakarta');
