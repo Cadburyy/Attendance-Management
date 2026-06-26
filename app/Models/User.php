@@ -18,19 +18,15 @@ class User extends Authenticatable
         'salt',
         'role',
         'picture',
-        'encrypted_dek',
-        'picture_iv',
-        'dek_iv',
         'face_embedding',
-        'picture_hash'
+        'otp_code',
+        'otp_expires_at'
     ];
 
     protected $hidden = [
         'password', 
         'remember_token', 
-        'salt',
-        'encrypted_dek',
-        'dek_iv'
+        'salt'
     ];
 
     protected function casts(): array

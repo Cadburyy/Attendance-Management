@@ -38,9 +38,6 @@ class UserController extends Controller
         return null;
     }
 
-    /**
-     * Get face embedding vector from AI Server
-     */
     private function getFaceEmbedding($imageFile)
     {
         try {
@@ -104,33 +101,18 @@ class UserController extends Controller
 
         $input = $request->except(['picture', 'confirm-password']);
 
-
         $input['salt'] = bin2hex(random_bytes(16)); 
         $input['password'] = Hash::make($request->input('password'));
 
         if ($request->hasFile('picture')) {
             $rawImage = file_get_contents($request->file('picture')->getRealPath());
-            $pictureHash = hash('sha256', $rawImage);
+            $mimeType = $request->file('picture')->getMimeType();
+            $base64Image = 'data:' . $mimeType . ';base64,' . base64_encode($rawImage);
 
-            if (User::where('picture_hash', $pictureHash)->exists()) {
-                 throw ValidationException::withMessages(['picture' => ['This face scan is already registered to another user.']]);
-            }
-            $input['picture_hash'] = $pictureHash;
-
-            // AI Face Embedding (Vector Data)
             $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
             
-            $secretString = env('CUSTOM_DECRYPTION_KEY') ? env('CUSTOM_DECRYPTION_KEY') : 'AM2026';
-            $kek = hash('sha256', $secretString, true);
-            $dek = random_bytes(32);
-            
-            $pictureIv = random_bytes(16);
-            $input['picture'] = openssl_encrypt($rawImage, 'aes-256-cbc', $dek, 0, $pictureIv);
-            $input['picture_iv'] = base64_encode($pictureIv);
-
-            $dekIv = random_bytes(16);
-            $input['encrypted_dek'] = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
-            $input['dek_iv'] = base64_encode($dekIv);
+            // Encrypt the Base64 String (Just like AbsenceController)
+            $input['picture'] = $this->encryptWithDEK($base64Image);
         }
 
         $input['role'] = $request->input('roles')[0];
@@ -154,31 +136,47 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
         
-        if (!$user->picture || !$user->encrypted_dek) {
+        if (!$user->picture) {
             abort(404, 'Image not found.');
         }
 
-        $secretString = env('CUSTOM_DECRYPTION_KEY') ? env('CUSTOM_DECRYPTION_KEY') : 'AM2026';
+        $payload = json_decode($user->picture, true);
+
+        if (!$payload || !isset($payload['data'], $payload['iv'], $payload['edek'], $payload['dek_iv'])) {
+            abort(400, 'Invalid encrypted image payload.');
+        }
+
+        $secretString = env('CUSTOM_DECRYPTION_KEY');
         $kek = hash('sha256', $secretString, true);
         
-        $dekIv = base64_decode($user->dek_iv);
-        $dek = openssl_decrypt($user->encrypted_dek, 'aes-256-cbc', $kek, 0, $dekIv);
+        $dekIv = base64_decode($payload['dek_iv']);
+        $dek = openssl_decrypt($payload['edek'], 'aes-256-cbc', $kek, 0, $dekIv);
 
-        if ($dek === false) abort(403, 'Failed to decrypt KEK. Incorrect master key.');
+        if ($dek === false) {
+            abort(403, 'Failed to decrypt KEK. Incorrect master key.');
+        }
 
-        $pictureIv = base64_decode($user->picture_iv);
-        $decrypted = openssl_decrypt($user->picture, 'aes-256-cbc', $dek, 0, $pictureIv);
+        $pictureIv = base64_decode($payload['iv']);
+        $decryptedBase64 = openssl_decrypt($payload['data'], 'aes-256-cbc', $dek, 0, $pictureIv);
 
-        if ($decrypted === false) abort(403, 'Failed to decrypt picture data.');
+        if ($decryptedBase64 === false) {
+            abort(403, 'Failed to decrypt picture data.');
+        }
+
+        // Clean up the Base64 wrapper to get the raw binary (Just like AbsenceController)
+        $cleanBase64 = preg_replace('#^data:image/[^;]+;base64,#', '', $decryptedBase64);
+        $cleanBase64 = str_replace(' ', '+', $cleanBase64);
+        
+        $imageBinary = base64_decode($cleanBase64);
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->buffer($decrypted) ?: 'image/jpeg';
+        $mimeType = $finfo->buffer($imageBinary) ?: 'image/jpeg';
 
         if (ob_get_length()) {
             ob_end_clean();
         }
 
-        return response($decrypted)->header('Content-Type', $mimeType);
+        return response($imageBinary)->header('Content-Type', $mimeType);
     }
 
     public function show($id): View
@@ -225,27 +223,13 @@ class UserController extends Controller
 
         if ($request->hasFile('picture')) {
             $rawImage = file_get_contents($request->file('picture')->getRealPath());
-            $pictureHash = hash('sha256', $rawImage);
+            $mimeType = $request->file('picture')->getMimeType();
+            $base64Image = 'data:' . $mimeType . ';base64,' . base64_encode($rawImage);
 
-            if (User::where('picture_hash', $pictureHash)->where('id', '!=', $id)->exists()) {
-                 throw ValidationException::withMessages(['picture' => ['This face scan is already registered to another user.']]);
-            }
-            $input['picture_hash'] = $pictureHash;
-
-            // AI Face Embedding (Vector Data Update)
             $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
 
-            $secretString = env('CUSTOM_DECRYPTION_KEY') ? env('CUSTOM_DECRYPTION_KEY') : 'AM2026';
-            $kek = hash('sha256', $secretString, true);
-            $dek = random_bytes(32);
-            
-            $pictureIv = random_bytes(16);
-            $input['picture'] = openssl_encrypt($rawImage, 'aes-256-cbc', $dek, 0, $pictureIv);
-            $input['picture_iv'] = base64_encode($pictureIv);
-
-            $dekIv = random_bytes(16);
-            $input['encrypted_dek'] = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
-            $input['dek_iv'] = base64_encode($dekIv);
+            // Encrypt the Base64 String
+            $input['picture'] = $this->encryptWithDEK($base64Image);
         }
 
         $input['role'] = $request->input('roles')[0];
@@ -273,5 +257,28 @@ class UserController extends Controller
         
         $user->delete();
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+    }
+
+    private function encryptWithDEK($data)
+    {
+        $secretString = env('CUSTOM_DECRYPTION_KEY');
+        $kek = hash('sha256', $secretString, true);
+
+        $dek = random_bytes(32); 
+        
+        $iv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+
+        $encryptedData = openssl_encrypt($data, 'aes-256-cbc', $dek, 0, $iv);
+
+        $dekIv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+
+        $encryptedDek = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
+
+        return json_encode([
+            'data' => $encryptedData,
+            'iv' => base64_encode($iv),
+            'edek' => $encryptedDek, 
+            'dek_iv' => base64_encode($dekIv)
+        ]);
     }
 }

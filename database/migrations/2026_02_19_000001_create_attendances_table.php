@@ -12,20 +12,20 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->date('date');
+            $table->unsignedTinyInteger('shift')->nullable();
             $table->time('check_in')->nullable();
             $table->time('check_out')->nullable();
             $table->string('status')->default('present');
             $table->text('notes')->nullable();
-            
-            $table->string('override_status')->nullable(); 
+            $table->string('override_status')->nullable();
             $table->string('requested_status')->nullable();
             $table->time('requested_check_in')->nullable();
             $table->time('requested_check_out')->nullable();
             $table->text('override_reason')->nullable();
-            
+            $table->longText('image')->nullable();
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
             $table->timestamps();
-            
-            $table->unique(['user_id', 'date']);
         });
     }
 

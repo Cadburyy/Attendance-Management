@@ -56,7 +56,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/absence/chat', [AbsenceController::class, 'proxyChat'])->name('absence.chat');
     
     Route::get('/users/{id}/picture', [UserController::class, 'showPicture'])->name('users.picture');
-    Route::get('/users/{id}/decrypt', [UserController::class, 'decryptImage'])->name('users.decrypt');
+    
     Route::resource('users', UserController::class);
     Route::resource('roles', RoleController::class);
 });

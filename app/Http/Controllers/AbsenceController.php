@@ -386,7 +386,6 @@ class AbsenceController extends Controller
         }
 
         if ($request->filled('image')) {
-            // Encrypt the base64 image using the KEK/DEK architecture
             $secureImagePayload = $this->encryptWithDEK($request->image);
             $attendance->update(['image' => $secureImagePayload]);
         }
@@ -692,16 +691,13 @@ class AbsenceController extends Controller
 
         $payload = json_decode($attendance->image, true);
 
-        // Pastikan JSON memiliki semua data yang dibutuhkan
         if (!$payload || !isset($payload['data'], $payload['iv'], $payload['edek'], $payload['dek_iv'])) {
             abort(400, 'Invalid encrypted image payload.');
         }
 
-        // 1. Setup KEK (Master Key) menggunakan AM2026
-        $secretString = env('CUSTOM_DECRYPTION_KEY', 'AM2026');
+        $secretString = env('CUSTOM_DECRYPTION_KEY');
         $kek = hash('sha256', $secretString, true);
 
-        // 2. Buka Brankas Master untuk mengambil Kunci Loker (DEK)
         $dekIv = base64_decode($payload['dek_iv']);
         $dek = openssl_decrypt($payload['edek'], 'aes-256-cbc', $kek, 0, $dekIv);
 
@@ -709,7 +705,6 @@ class AbsenceController extends Controller
             abort(403, 'Failed to decrypt KEK. Incorrect master key.');
         }
 
-        // 3. Buka Gembok Gambar menggunakan Kunci Loker (DEK)
         $iv = base64_decode($payload['iv']);
         $decryptedBase64 = openssl_decrypt($payload['data'], 'aes-256-cbc', $dek, 0, $iv);
 
@@ -717,7 +712,6 @@ class AbsenceController extends Controller
             abort(403, 'Failed to decrypt picture data.');
         }
 
-        // Bersihkan prefix base64 jika ada (karena dikirim lewat API kamera)
         $cleanBase64 = preg_replace('#^data:image/[^;]+;base64,#', '', $decryptedBase64);
         $cleanBase64 = str_replace(' ', '+', $cleanBase64);
         
@@ -733,33 +727,21 @@ class AbsenceController extends Controller
         return response($imageBinary)->header('Content-Type', $mimeType);
     }
 
-    /**
-     * KEK / DEK Encryption Architecture
-     * Generates a unique DEK per transaction, encrypts the data with AES-256-CBC,
-     * and encrypts the DEK with the application's Master KEK.
-     */
     private function encryptWithDEK($data)
     {
-        // 1. Setup KEK (Master Key) menggunakan AM2026
-        $secretString = env('CUSTOM_DECRYPTION_KEY', 'AM2026');
+        $secretString = env('CUSTOM_DECRYPTION_KEY');
         $kek = hash('sha256', $secretString, true);
 
-        // 2. Generate Kunci Loker (DEK) - 32 bytes
         $dek = random_bytes(32); 
         
-        // 3. Generate Bumbu Acak (IV) untuk Gambar
         $iv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
 
-        // 4. Gembok Gambar menggunakan DEK
         $encryptedData = openssl_encrypt($data, 'aes-256-cbc', $dek, 0, $iv);
 
-        // 5. Generate Bumbu Acak (IV) untuk DEK
         $dekIv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
 
-        // 6. Gembok Kunci Loker (DEK) menggunakan KEK
         $encryptedDek = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
 
-        // 7. Bungkus semuanya jadi satu paket JSON
         return json_encode([
             'data' => $encryptedData,
             'iv' => base64_encode($iv),

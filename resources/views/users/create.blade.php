@@ -115,6 +115,7 @@
                         @endif
                     @endforeach
                 </div>
+            </div>
 
             <div class="form-group" style="padding: 24px 16px; border: 2px dashed #e5e7eb; border-radius: 10px; background: #f8fafc; text-align: center;">
                 <label class="form-label" style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px;">
