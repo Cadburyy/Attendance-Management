@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('salt')->nullable();
             $table->string('role')->nullable();
             $table->longText('picture')->nullable();
+            $table->string('picture_hash', 64)->nullable();
             $table->longText('face_embedding')->nullable();
             $table->string('otp_code')->nullable();
             $table->timestamp('otp_expires_at')->nullable();

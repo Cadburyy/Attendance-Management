@@ -109,9 +109,18 @@ class UserController extends Controller
             $mimeType = $request->file('picture')->getMimeType();
             $base64Image = 'data:' . $mimeType . ';base64,' . base64_encode($rawImage);
 
+            // Data Integrity Hashing (Process 5): reject duplicate biometric enrollment
+            $pictureHash = hash('sha256', $rawImage);
+            if (User::where('picture_hash', $pictureHash)->exists()) {
+                throw ValidationException::withMessages([
+                    'picture' => ['This face scan is already registered to another user.']
+                ]);
+            }
+            $input['picture_hash'] = $pictureHash;
+
             $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
-            
-            // Encrypt the Base64 String (Just like AbsenceController)
+
+            // Envelope Encryption (KEK/DEK, AES-256-CBC)
             $input['picture'] = $this->encryptWithDEK($base64Image);
         }
 
@@ -163,7 +172,6 @@ class UserController extends Controller
             abort(403, 'Failed to decrypt picture data.');
         }
 
-        // Clean up the Base64 wrapper to get the raw binary (Just like AbsenceController)
         $cleanBase64 = preg_replace('#^data:image/[^;]+;base64,#', '', $decryptedBase64);
         $cleanBase64 = str_replace(' ', '+', $cleanBase64);
         
@@ -226,9 +234,18 @@ class UserController extends Controller
             $mimeType = $request->file('picture')->getMimeType();
             $base64Image = 'data:' . $mimeType . ';base64,' . base64_encode($rawImage);
 
+            // Data Integrity Hashing (Process 5): reject duplicate biometric enrollment,
+            // excluding the current user so re-uploading their own photo doesn't false-positive
+            $pictureHash = hash('sha256', $rawImage);
+            if (User::where('picture_hash', $pictureHash)->where('id', '!=', $id)->exists()) {
+                throw ValidationException::withMessages([
+                    'picture' => ['This face scan is already registered to another user.']
+                ]);
+            }
+            $input['picture_hash'] = $pictureHash;
+
             $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
 
-            // Encrypt the Base64 String
             $input['picture'] = $this->encryptWithDEK($base64Image);
         }
 

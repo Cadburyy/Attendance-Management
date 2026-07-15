@@ -23,6 +23,7 @@ return new class extends Migration
             $table->time('requested_check_out')->nullable();
             $table->text('override_reason')->nullable();
             $table->longText('image')->nullable();
+            $table->string('data_integrity_hash', 64)->nullable();
             $table->decimal('latitude', 10, 7)->nullable();
             $table->decimal('longitude', 10, 7)->nullable();
             $table->timestamps();

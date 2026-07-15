@@ -18,6 +18,7 @@ class User extends Authenticatable
         'salt',
         'role',
         'picture',
+        'picture_hash',
         'face_embedding',
         'otp_code',
         'otp_expires_at'

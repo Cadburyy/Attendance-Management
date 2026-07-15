@@ -386,8 +386,13 @@ class AbsenceController extends Controller
         }
 
         if ($request->filled('image')) {
+            // Data Integrity Hashing (Process 5): fingerprint the raw image before encryption
+            // so admins can re-hash the decrypted image later and verify it hasn't been tampered with
             $secureImagePayload = $this->encryptWithDEK($request->image);
-            $attendance->update(['image' => $secureImagePayload]);
+            $attendance->update([
+                'image' => $secureImagePayload,
+                'data_integrity_hash' => hash('sha256', $request->image),
+            ]);
         }
 
         if ($request->filled('image') && $user && in_array($status, ['check-in', 'check-out'])) {
