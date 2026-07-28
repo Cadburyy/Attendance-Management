@@ -58,7 +58,7 @@ LIVENESS_CHALLENGES = {
 }
 
 # Load Model
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'yolov8_cnk_best (3).pt')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'yolov8_cnk_best.pt')
 
 print(f"Loading YOLO model from {MODEL_PATH}...")
 model = YOLO(MODEL_PATH)
