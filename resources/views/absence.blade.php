@@ -327,7 +327,7 @@
 <div class="container">
     <div class="camera-section">
         <video id="video" autoplay muted></video>
-        <div id="flash-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 255, 0.25); mix-blend-mode: screen; pointer-events: none; z-index: 10; transition: background 0.1s;"></div>
+        <div id="liveness-scan-glow" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 255, 0.25); mix-blend-mode: screen; pointer-events: none; z-index: 10; transition: opacity 0.1s;"></div>
         <div class="overlay">
             <div class="scanner-box">
                 <div class="scanner-line"></div>
@@ -470,7 +470,7 @@
     let isManualFlow = false;
     let challengeStatus = { blink: 'pending', turn_left: 'pending', turn_right: 'pending' };
 
-    // Verify Geolocation
+    //. Verify Geolocation (GPS needed)
     async function verifyLocation() {
         return new Promise((resolve, reject) => {
             if (!navigator.geolocation) {
@@ -728,12 +728,10 @@
         };
 
         document.getElementById('liveness-overlay-card').style.display = 'block';
+        document.getElementById('liveness-scan-glow').style.display = 'block';
         document.getElementById('liveness-instruction').innerText = instructions[currentChallenge] || 'Silakan Kedipkan Mata Anda 👁️';
         
         updateChallengeDots();
-
-        // Turn on active flash blue light
-        document.getElementById('flash-overlay').style.display = 'block';
 
         livenessFrames = [];
         let progress = 0;
@@ -756,8 +754,7 @@
             if (livenessFrames.length >= 15) {
                 clearInterval(livenessInterval);
                 livenessInterval = null;
-                // Turn off active flash blue light
-                document.getElementById('flash-overlay').style.display = 'none';
+                document.getElementById('liveness-scan-glow').style.display = 'none';
                 await verifyCurrentChallenge();
             }
         }, 200); // 15 frames in 3 seconds
@@ -775,7 +772,6 @@
                 body: JSON.stringify({
                     frames: livenessFrames,
                     challenge: currentChallenge,
-                    flash_active: true
                 })
             });
 
@@ -846,7 +842,7 @@
 
         document.getElementById('confirm-modal').style.display = 'none';
         document.getElementById('liveness-overlay-card').style.display = 'none';
-        document.getElementById('flash-overlay').style.display = 'none';
+        document.getElementById('liveness-scan-glow').style.display = 'none';
         document.getElementById('user-search').value = '';
         document.getElementById('search-suggestions').style.display = 'none';
         document.getElementById('liveness-challenge').style.display = 'none';

@@ -22,6 +22,7 @@ class AbsenceController extends Controller
         return view('absence', compact('settings'));
     }
 
+    #. Active Shift Logic
     private function getActiveShiftDetails($now)
     {
         $settings = Setting::pluck('value', 'key')->toArray();
@@ -77,46 +78,51 @@ class AbsenceController extends Controller
 
     private function getActiveAttendance($userId, $now)
     {
+        $settings = Setting::pluck('value', 'key')->toArray();
         $today = $now->toDateString();
+        
+        // Check today's uncompleted attendance
         $attendance = Attendance::where('user_id', $userId)
             ->where('date', $today)
             ->whereNotNull('check_in')
             ->whereNull('check_out')
             ->first();
-            
+
+        if (!$attendance) {
+            // Check yesterday's uncompleted attendance (for night shift crossing midnight)
+            $yesterday = $now->copy()->subDay()->toDateString();
+            $attendance = Attendance::where('user_id', $userId)
+                ->where('date', $yesterday)
+                ->whereNotNull('check_in')
+                ->whereNull('check_out')
+                ->orderBy('id', 'desc')
+                ->first();
+        }
+
         if ($attendance) {
+            $shiftNum = $attendance->shift ?? 1;
+            $inStart = $settings["shift_{$shiftNum}_in_start"] ?? '06:00';
+            $outStart = $settings["shift_{$shiftNum}_out_start"] ?? '14:00';
+            $outEnd = $settings["shift_{$shiftNum}_out_end"] ?? '16:00';
+
+            $checkInDate = Carbon::parse($attendance->date);
+            $checkOutDate = $checkInDate->copy();
+
+            // Shift spans midnight if outStart < inStart OR outEnd < outStart
+            if ($outStart < $inStart || $outEnd < $outStart) {
+                $checkOutDate->addDay();
+            }
+
+            $checkoutEndThreshold = Carbon::parse($checkOutDate->toDateString() . ' ' . $outEnd, 'Asia/Jakarta');
+
+            // If current time is AFTER checkout end threshold, auto-sweep (expire) this attendance session
+            if ($now->greaterThan($checkoutEndThreshold)) {
+                return null;
+            }
+
             return $attendance;
         }
 
-        $yesterday = $now->copy()->subDay()->toDateString();
-        $yesterdayAttendance = Attendance::where('user_id', $userId)
-            ->where('date', $yesterday)
-            ->whereNotNull('check_in')
-            ->whereNull('check_out')
-            ->orderBy('id', 'desc')
-            ->first();
-        
-        if ($yesterdayAttendance) {
-            $shiftNum = $yesterdayAttendance->shift;
-            if ($shiftNum) {
-                $settings = Setting::pluck('value', 'key')->toArray();
-                
-                $outStart = $settings["shift_{$shiftNum}_out_start"] ?? null;
-                $outEnd = $settings["shift_{$shiftNum}_out_end"] ?? null;
-                
-                if ($outStart && $outEnd) {
-                    $compareTime = $now->format('H:i');
-                    $isCheckoutTime = ($outEnd < $outStart) 
-                        ? ($compareTime >= $outStart || $compareTime <= $outEnd)
-                        : ($compareTime >= $outStart && $compareTime <= $outEnd);
-                        
-                    if ($isCheckoutTime) {
-                        return $yesterdayAttendance;
-                    }
-                }
-            }
-        }
-        
         return null;
     }
 
@@ -230,6 +236,7 @@ class AbsenceController extends Controller
         }
     }
 
+    #. Record Attendance for checking
     public function record(Request $request)
     {
         $request->validate([
@@ -395,6 +402,7 @@ class AbsenceController extends Controller
             ]);
         }
 
+        #. Rolling-Window Face Reference Update 
         if ($request->filled('image') && $user && in_array($status, ['check-in', 'check-out'])) {
             try {
                 $embeddingResponse = Http::timeout(15)->post('http://127.0.0.1:5000/represent', [
@@ -436,6 +444,7 @@ class AbsenceController extends Controller
         ]);
     }
 
+    #. Geolocation Function Logic (Haversine Formula)
     public function verifyGeolocation(Request $request)
     {
         $request->validate([

@@ -89,6 +89,7 @@ class SettingsController extends Controller
         return redirect()->route('settings.index')->with('success', 'Appearance updated successfully!');
     }
 
+    #. Shift Configuration Settings
     public function updateAbsenceTime(Request $request)
     {
         $request->validate([
@@ -125,6 +126,7 @@ class SettingsController extends Controller
         return redirect()->route('settings.index')->with('success', 'Shift times updated successfully!');
     }
 
+    #. Geolocation Configuration Settings
     public function updateGeolocation(Request $request)
     {
         $request->validate([

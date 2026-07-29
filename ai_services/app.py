@@ -35,7 +35,6 @@ if mp_tasks_available and not os.path.exists(TASK_FILE_PATH):
         print(f"Error downloading face landmarker model: {e}")
 
 
-# Disable DeepFace logging spam and fix OpenMP duplicate issues on Windows
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -45,12 +44,12 @@ CORS(app)
 # ============================================
 # CONFIG / SETTINGS
 # ============================================
-# TRIAL MODE: Set to True to skip uniform detection (face-only mode), or False to enable it.
+# TRIAL MODE: set it True to skip the uniform detection
 TRIAL_MODE = True
 if TRIAL_MODE:
     print("⚠️  TRIAL MODE ACTIVE: Uniform detection is DISABLED. Face-only mode.")
 
-# Toggle which liveness challenges are active/available
+# Liveness Challenge Toggle
 LIVENESS_CHALLENGES = {
     'blink': True,
     'turn_left': True,
@@ -63,7 +62,7 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), 'yolov8_cnk_best.pt')
 print(f"Loading YOLO model from {MODEL_PATH}...")
 model = YOLO(MODEL_PATH)
 
-# Initialize MediaPipe Face Landmarker globally at startup
+# Initialize MediaPipe Face Landmarker
 global_landmarker = None
 if mp_tasks_available and os.path.exists(TASK_FILE_PATH):
     try:
@@ -110,10 +109,6 @@ def detect_head_turn(face_landmarks):
     return ratio
 
 def get_face_embeddings_with_fallbacks(frame, enforce_detection=True):
-    """
-    Attempts to detect faces and extract embeddings using multiple backends.
-    Tries: retinaface, opencv, mtcnn in order.
-    """
     for backend in ['retinaface', 'opencv', 'mtcnn']:
         try:
             embeddings = DeepFace.represent(
@@ -127,7 +122,6 @@ def get_face_embeddings_with_fallbacks(frame, enforce_detection=True):
         except Exception:
             continue
             
-    # If all enforced detections fail, fallback to retinaface/opencv with enforce_detection=False
     if not enforce_detection:
         for backend in ['retinaface', 'opencv']:
             try:
@@ -155,7 +149,6 @@ def represent():
         if frame is None:
             return jsonify({'error': 'Invalid image'}), 400
 
-        # Extract embedding using multi-backend fallback
         embeddings = get_face_embeddings_with_fallbacks(frame, enforce_detection=False)
         
         if len(embeddings) > 0:
@@ -184,7 +177,6 @@ def verify_liveness():
         
         frames = data['frames']
         challenge = data['challenge']
-        flash_active = data.get('flash_active', False)
         
         if not LIVENESS_CHALLENGES.get(challenge, False):
             return jsonify({'status': 'failed', 'message': f'Challenge {challenge} is disabled/invalid'}), 400
@@ -195,15 +187,12 @@ def verify_liveness():
         if not mp_tasks_available or not os.path.exists(TASK_FILE_PATH):
             return jsonify({'status': 'error', 'message': 'MediaPipe Tasks Face Landmarker is not ready or model file is missing.'}), 500
             
-        # Use the correct globally initialized landmarker
         landmarker = global_landmarker
         if landmarker is None:
             return jsonify({'status': 'error', 'message': 'Face Landmarker model is not initialized.'}), 500
 
         ear_values = []
         turn_ratios = []
-        depth_diffs = []
-        blue_reflections = []
         detected_frames_data = []
         
         detected_count = 0
@@ -240,23 +229,22 @@ def verify_liveness():
                 right_ear = calculate_ear(right_eye)
                 avg_ear = (left_ear + right_ear) / 2.0
                 
-                # Check for instant jump / photo swapping compared to the previous detected frame
                 if len(detected_frames_data) > 0:
                     prev = detected_frames_data[-1]
                     
-                    # 1. Coordinate jump (wajah berpindah tempat secara instan)
+                    # 1. Coordinate jump
                     dist = np.sqrt((cx - prev['cx'])**2 + (cy - prev['cy'])**2)
-                    if dist > 0.20: # Relaxed from 0.07 to 0.20 (20% of frame size)
+                    if dist > 0.20:
                         return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Perubahan posisi wajah tidak alami (terdeteksi pergantian foto)'})
                     
-                    # 2. Scale jump (ukuran wajah membesar/mengecil secara instan)
+                    # 2. Scale jump
                     scale_w = abs(w - prev['w']) / (prev['w'] + 1e-5)
                     scale_h = abs(h - prev['h']) / (prev['h'] + 1e-5)
-                    if scale_w > 0.30 or scale_h > 0.30: # Relaxed from 0.11 to 0.30 (30% scale change)
+                    if scale_w > 0.30 or scale_h > 0.30:
                         return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Perubahan ukuran wajah tidak alami (terdeteksi pergantian foto)'})
                     
-                    # 3. Head turn ratio jump (arah hadap wajah berputar secara instan)
-                    if abs(ratio - prev['turn_ratio']) > 0.25: # Relaxed from 0.15 to 0.25
+                    # 3. Head turn ratio jump
+                    if abs(ratio - prev['turn_ratio']) > 0.25:
                         return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Gerakan kepala tidak alami (terdeteksi pergantian foto)'})
                 
                 detected_frames_data.append({
@@ -264,30 +252,12 @@ def verify_liveness():
                     'turn_ratio': ratio, 'ear': avg_ear
                 })
                 
-                # 3D Depth Check (Anti-Spoofing flat screens/photos)
-                edge_z = (landmarks[234].z + landmarks[454].z) / 2.0
-                depth_diff = edge_z - landmarks[1].z
-                depth_diffs.append(depth_diff)
-                
-                # Active Flash Color Check
-                if flash_active:
-                    xs_px = [int(pt.x * frame.shape[1]) for pt in landmarks]
-                    ys_px = [int(pt.y * frame.shape[0]) for pt in landmarks]
-                    min_x_px, max_x_px = max(0, min(xs_px)), min(frame.shape[1], max(xs_px))
-                    min_y_px, max_y_px = max(0, min(ys_px)), min(frame.shape[0], max(ys_px))
-                    face_roi = frame[min_y_px:max_y_px, min_x_px:max_x_px]
-                    if face_roi.size > 0:
-                        avg_b = np.mean(face_roi[:, :, 0])
-                        avg_g = np.mean(face_roi[:, :, 1])
-                        avg_r = np.mean(face_roi[:, :, 2])
-                        blue_reflections.append(avg_b / (avg_r + avg_g + 1e-5))
-                
                 if challenge == 'blink':
                     ear_values.append(avg_ear)
                 elif challenge in ['turn_left', 'turn_right']:
                     turn_ratios.append(ratio)
         
-        # 1. Strict Detection Rate Check (Prevents photo swapping / covering camera)
+        # 1. Strict Detection Rate Check
         if detected_count < 13:
             return jsonify({'status': 'failed', 'message': f'Spoofing Terdeteksi: Pergerakan wajah terputus atau kamera terhalang (Deteksi: {detected_count}/15 frame)'})
  
@@ -295,7 +265,7 @@ def verify_liveness():
             if not ear_values:
                 return jsonify({'status': 'failed', 'message': 'No face detected in any of the frames'}), 200
             
-            # Static Photo Detection for blink: EAR must have some natural variance
+            # Static Photo Detection for blink
             ear_std = np.std(ear_values)
             if ear_std < 0.008:
                 return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Mata terdeteksi statis/diam (kemungkinan menggunakan foto)'})
@@ -311,14 +281,14 @@ def verify_liveness():
             if not turn_ratios:
                 return jsonify({'status': 'failed', 'message': 'No face detected in any of the frames'}), 200
             
-            # Static Photo Detection for turn: turn ratio must have some variance/movement
+            # Static Photo Detection for turn
             turn_range = max(turn_ratios) - min(turn_ratios)
-            if turn_range < 0.08: # Increased from 0.05 to 0.08
+            if turn_range < 0.08:
                 return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Gerakan kepala statis/diam (kemungkinan menggunakan foto)'})
 
             max_ratio = max(turn_ratios)
             min_ratio = min(turn_ratios)
-            # Enforce that user must have started from a centered position (<= 0.54) and turned left (>= 0.62)
+            
             if max_ratio >= 0.62 and min_ratio <= 0.54:
                 return jsonify({'status': 'passed', 'message': 'Left turn detected successfully.'})
             else:
@@ -328,14 +298,14 @@ def verify_liveness():
             if not turn_ratios:
                 return jsonify({'status': 'failed', 'message': 'No face detected in any of the frames'}), 200
 
-            # Static Photo Detection for turn: turn ratio must have some variance/movement
+            # Static Photo Detection for turn
             turn_range = max(turn_ratios) - min(turn_ratios)
-            if turn_range < 0.08: # Increased from 0.05 to 0.08
+            if turn_range < 0.08:
                 return jsonify({'status': 'failed', 'message': 'Spoofing Terdeteksi: Gerakan kepala statis/diam (kemungkinan menggunakan foto)'})
 
             min_ratio = min(turn_ratios)
             max_ratio = max(turn_ratios)
-            # Enforce that user must have started from a centered position (>= 0.46) and turned right (<= 0.38)
+            
             if min_ratio <= 0.38 and max_ratio >= 0.46:
                 return jsonify({'status': 'passed', 'message': 'Right turn detected successfully.'})
             else:
@@ -371,10 +341,9 @@ def analyze():
         best_match = None
         best_match_id = None
         min_dist = 1.0 
-        threshold = 0.63 # Relaxed from 0.58 to reduce false rejection rate
+        threshold = 0.63
 
         for user in user_embeddings:
-            # Support both old format ('embedding') and new format ('embeddings')
             embeddings_list = user.get('embeddings', [])
             if not embeddings_list and user.get('embedding'):
                 embeddings_list = [user['embedding']]
@@ -395,7 +364,7 @@ def analyze():
         if not best_match or min_dist >= threshold:
             return jsonify({'status': 'unknown', 'message': f'Face unknown (Dist: {min_dist:.3f})'})
 
-        # 2. YOLO Deteksi Pakaian dengan Filter Hari (skip in TRIAL_MODE or on Fridays)
+        # 2. YOLO Uniform Detection
         has_uniform = True
         hari_angka = datetime.now().weekday()
         is_friday = (hari_angka == 4)
@@ -551,7 +520,7 @@ Aturan Utama:
 - Gunakan format bullet points untuk menampilkan daftar nama/data agar mudah dibaca cepat.
 - Batasi panjang total jawaban Anda hingga maksimum 2-3 paragraf pendek atau sekitar 300-400 karakter."""
 
-        # Keep only the last 20 messages in conversation history
+        # Keep the last 20 messages in conversation history
         trimmed_history = conversation_history[-20:]
         
         messages = [{"role": "system", "content": system_prompt}]
@@ -592,11 +561,9 @@ Aturan Utama:
             choice = choices[0]
             msg = choice.get('message', {})
 
-            # Clean any None value for content in message to prevent OpenRouter 400 bad request error on subsequent requests
             if msg.get('content') is None:
                 msg['content'] = ""
 
-            # If the LLM wants to call a tool
             if msg.get('tool_calls'):
                 messages.append(msg)
                 for tool_call in msg['tool_calls']:
@@ -614,7 +581,7 @@ Aturan Utama:
                         "tool_call_id": tool_call['id'],
                         "content": tool_result
                     })
-                continue  # Loop back to send tool results to LLM
+                continue
 
             # Final text response
             reply = msg.get('content', 'Maaf, saya tidak bisa memproses permintaan ini.')
