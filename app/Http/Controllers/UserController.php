@@ -13,9 +13,12 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Http;
+use App\Services\KmsClient;
 
 class UserController extends Controller
 {
+    private const PICTURE_KMS_KEY = 'picture-kek';
+
     public function __construct()
     {
         $this->middleware('permission:user');
@@ -120,7 +123,7 @@ class UserController extends Controller
 
             $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
 
-            // Envelope Encryption (KEK/DEK, AES-256-CBC)
+            // Envelope Encryption (KEK/DEK via KMS)
             $input['picture'] = $this->encryptWithDEK($base64Image);
         }
 
@@ -151,26 +154,13 @@ class UserController extends Controller
 
         $payload = json_decode($user->picture, true);
 
-        if (!$payload || !isset($payload['data'], $payload['iv'], $payload['edek'], $payload['dek_iv'])) {
+        // Updated validation to check for the new KMS/GCM payload keys
+        if (!$payload || !isset($payload['data'], $payload['iv'], $payload['tag'], $payload['edek'], $payload['dek_iv'], $payload['dek_tag'], $payload['kek_version'])) {
             abort(400, 'Invalid encrypted image payload.');
         }
 
-        $secretString = env('CUSTOM_DECRYPTION_KEY');
-        $kek = hash('sha256', $secretString, true);
-        
-        $dekIv = base64_decode($payload['dek_iv']);
-        $dek = openssl_decrypt($payload['edek'], 'aes-256-cbc', $kek, 0, $dekIv);
-
-        if ($dek === false) {
-            abort(403, 'Failed to decrypt KEK. Incorrect master key.');
-        }
-
-        $pictureIv = base64_decode($payload['iv']);
-        $decryptedBase64 = openssl_decrypt($payload['data'], 'aes-256-cbc', $dek, 0, $pictureIv);
-
-        if ($decryptedBase64 === false) {
-            abort(403, 'Failed to decrypt picture data.');
-        }
+        // Call the new KMS decryption method instead of the old local one
+        $decryptedBase64 = $this->decryptWithDEK($payload);
 
         $cleanBase64 = preg_replace('#^data:image/[^;]+;base64,#', '', $decryptedBase64);
         $cleanBase64 = str_replace(' ', '+', $cleanBase64);
@@ -234,8 +224,7 @@ class UserController extends Controller
             $mimeType = $request->file('picture')->getMimeType();
             $base64Image = 'data:' . $mimeType . ';base64,' . base64_encode($rawImage);
 
-            // Data Integrity Hashing (Process 5): reject duplicate biometric enrollment,
-            // excluding the current user so re-uploading their own photo doesn't false-positive
+            // Data Integrity Hashing (Process 5)
             $pictureHash = hash('sha256', $rawImage);
             if (User::where('picture_hash', $pictureHash)->where('id', '!=', $id)->exists()) {
                 throw ValidationException::withMessages([
@@ -246,6 +235,7 @@ class UserController extends Controller
 
             $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
 
+            // Envelope Encryption (KEK/DEK via KMS)
             $input['picture'] = $this->encryptWithDEK($base64Image);
         }
 
@@ -278,24 +268,59 @@ class UserController extends Controller
 
     private function encryptWithDEK($data)
     {
-        $secretString = env('CUSTOM_DECRYPTION_KEY');
-        $kek = hash('sha256', $secretString, true);
+        $kms = new KmsClient();
 
-        $dek = random_bytes(32); 
-        
-        $iv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+        $dek = random_bytes(32);
+        $dataIv = random_bytes(12);
+        $dataTag = '';
+        $encryptedData = openssl_encrypt(
+            $data, 'aes-256-gcm', $dek, OPENSSL_RAW_DATA, $dataIv, $dataTag
+        );
 
-        $encryptedData = openssl_encrypt($data, 'aes-256-cbc', $dek, 0, $iv);
+        // Ask the KMS service to wrap the DEK. The KEK itself never enters this process.
+        $wrapped = $kms->encrypt(self::PICTURE_KMS_KEY, $dek);
 
-        $dekIv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
-
-        $encryptedDek = openssl_encrypt($dek, 'aes-256-cbc', $kek, 0, $dekIv);
+        sodium_memzero($dek);
 
         return json_encode([
-            'data' => $encryptedData,
-            'iv' => base64_encode($iv),
-            'edek' => $encryptedDek, 
-            'dek_iv' => base64_encode($dekIv)
+            'data'        => base64_encode($encryptedData),
+            'iv'          => base64_encode($dataIv),
+            'tag'         => base64_encode($dataTag),
+            'edek'        => $wrapped['ciphertext'],
+            'dek_iv'      => $wrapped['iv'],
+            'dek_tag'     => $wrapped['tag'],
+            'kek_version' => $wrapped['keyVersion'],
         ]);
+    }
+
+    private function decryptWithDEK(array $payload)
+    {
+        $kms = new KmsClient();
+
+        // Ask the KMS service to unwrap the DEK.
+        try {
+            $dek = $kms->decrypt(
+                self::PICTURE_KMS_KEY,
+                (int) $payload['kek_version'],
+                $payload['edek'],
+                $payload['dek_iv'],
+                $payload['dek_tag']
+            );
+        } catch (\RuntimeException $e) {
+            abort(403, 'Failed to unwrap DEK via KMS. Incorrect key version or tampered data.');
+        }
+
+        $decrypted = openssl_decrypt(
+            base64_decode($payload['data']), 'aes-256-gcm', $dek,
+            OPENSSL_RAW_DATA, base64_decode($payload['iv']), base64_decode($payload['tag'])
+        );
+
+        sodium_memzero($dek);
+
+        if ($decrypted === false) {
+            abort(403, 'Failed to decrypt picture data — data may be tampered.');
+        }
+
+        return $decrypted;
     }
 }
