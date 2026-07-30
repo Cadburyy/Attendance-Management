@@ -733,6 +733,15 @@
         
         updateChallengeDots();
 
+        // 15-second Inactivity Timeout to auto-cancel liveness if user walks away
+        if (livenessTimeoutTimer) clearTimeout(livenessTimeoutTimer);
+        livenessTimeoutTimer = setTimeout(() => {
+            if (isModalOpen || livenessActive) {
+                closeModal();
+                showToast('Liveness dibatalkan: Tidak ada aktivitas / Waktu habis', 'info');
+            }
+        }, 15000);
+
         livenessFrames = [];
         let progress = 0;
         const progressEl = document.getElementById('liveness-overlay-progress');
@@ -828,6 +837,10 @@
     }
 
     function closeModal() {
+        if (livenessTimeoutTimer) {
+            clearTimeout(livenessTimeoutTimer);
+            livenessTimeoutTimer = null;
+        }
         if (livenessInterval) {
             clearInterval(livenessInterval);
             livenessInterval = null;
@@ -1007,8 +1020,24 @@
     }
 
 
+    let livenessTimeoutTimer = null;
+
     // Init
     async function init() {
+        try {
+            statusDisplay.innerHTML = '<i class="fas fa-location-arrow text-primary"></i> <span>Verifikasi Lokasi...</span>';
+            const locResult = await verifyLocation();
+            if (locResult && locResult.status === 'denied') {
+                statusDisplay.innerHTML = `<i class="fas fa-map-marker-alt text-danger"></i> <span>${locResult.message}</span>`;
+                isProcessing = true;
+                return;
+            }
+        } catch (err) {
+            console.warn('Geolocation notice:', err);
+            statusDisplay.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> <span>${err}</span>`;
+            isProcessing = true;
+            return;
+        }
         startCamera();
         fetchAllUsers();
         fetchRecentAttendance();

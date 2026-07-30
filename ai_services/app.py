@@ -45,7 +45,7 @@ CORS(app)
 # CONFIG / SETTINGS
 # ============================================
 # TRIAL MODE: set it True to skip the uniform detection
-TRIAL_MODE = True
+TRIAL_MODE = False
 if TRIAL_MODE:
     print("⚠️  TRIAL MODE ACTIVE: Uniform detection is DISABLED. Face-only mode.")
 

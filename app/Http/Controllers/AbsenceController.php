@@ -57,12 +57,12 @@ class AbsenceController extends Controller
             $outStart = $shift['out_start'];
 
             if ($outStart < $inStart) {
-                if ($compareTime >= $inStart || $compareTime <= $outStart) {
+                if ($compareTime >= $inStart || $compareTime < $outStart) {
                     $activeShift = $num;
                     break;
                 }
             } else {
-                if ($compareTime >= $inStart && $compareTime <= $outStart) {
+                if ($compareTime >= $inStart && $compareTime < $outStart) {
                     $activeShift = $num;
                     break;
                 }
@@ -259,6 +259,25 @@ class AbsenceController extends Controller
             ], 404);
         }
 
+        // Server-Side Geofence Validation (Defense-in-Depth)
+        $settings = Setting::pluck('value', 'key')->toArray();
+        if (!empty($settings['geolocation_enabled']) && $settings['geolocation_enabled'] == '1') {
+            if (!$request->filled('latitude') || !$request->filled('longitude')) {
+                return response()->json([
+                    'status' => 'outside_hours',
+                    'message' => 'Lokasi GPS tidak terdeteksi. Izinkan akses lokasi di browser Anda.'
+                ], 400);
+            }
+            $geoCheck = $this->verifyGeolocation($request);
+            $geoData = $geoCheck->getData(true);
+            if (isset($geoData['status']) && $geoData['status'] === 'denied') {
+                return response()->json([
+                    'status' => 'outside_hours',
+                    'message' => $geoData['message'] ?? 'Anda berada di luar area kantor.'
+                ], 403);
+            }
+        }
+
         $now = Carbon::now('Asia/Jakarta');
         $today = $now->toDateString();
         $currentTime = $now->format('H:i:s');
@@ -402,19 +421,18 @@ class AbsenceController extends Controller
             ]);
         }
 
-        #. Rolling-Window Face Reference Update 
-        if ($request->filled('image') && $user && in_array($status, ['check-in', 'check-out'])) {
+        #. Rolling-Window Face Reference Update (Only for AI Scan flow to prevent biometric data poisoning)
+        if ($request->filled('image') && $request->filled('user_id') && $user && in_array($status, ['check-in', 'check-out'])) {
             try {
                 $embeddingResponse = Http::timeout(15)->post('http://127.0.0.1:5000/represent', [
                     'image' => $request->image,
                 ]);
 
                 if ($embeddingResponse->successful() && isset($embeddingResponse->json()['embedding'])) {
-                    $source = $request->user_id ? 'ai_attendance' : 'manual_attendance';
                     \App\Models\FaceReference::create([
                         'user_id' => $user->id,
                         'embedding' => $embeddingResponse->json()['embedding'],
-                        'source' => $source,
+                        'source' => 'ai_attendance',
                         'image_path' => null, 
                     ]);
 
@@ -601,7 +619,7 @@ class AbsenceController extends Controller
             case 'get_today_summary':
                 $records = Attendance::where('date', $today)->get();
                 $totalEmployees = User::count();
-                $presentCount = $records->whereIn('status', ['present', 'late'])->count();
+                $accountedFor = $records->whereIn('status', ['present', 'late', 'sick', 'leave', 'absent'])->count();
                 return response()->json([
                     'date' => $today,
                     'total_employees' => $totalEmployees,
@@ -610,7 +628,7 @@ class AbsenceController extends Controller
                     'sick' => $records->where('status', 'sick')->count(),
                     'leave' => $records->where('status', 'leave')->count(),
                     'absent' => $records->where('status', 'absent')->count(),
-                    'not_checked_in' => $totalEmployees - $presentCount,
+                    'not_checked_in' => max(0, $totalEmployees - $accountedFor),
                 ]);
 
             case 'get_employees_by_status':

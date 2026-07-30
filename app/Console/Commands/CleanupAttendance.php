@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Models\Attendance;
 use App\Models\User;
 use Carbon\Carbon;
+use App\Models\Setting;
 
 class CleanupAttendance extends Command
 {

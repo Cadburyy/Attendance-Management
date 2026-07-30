@@ -169,6 +169,7 @@
                 <tr>
                     <th>Employee</th>
                     <th>Date</th>
+                    <th>Shift</th>
                     <th>Check In</th>
                     <th>Check Out</th>
                     <th>Status</th>
@@ -186,6 +187,11 @@
                         </td>
                         <td>
                             <span style="font-weight: 600; color: #475569;">{{ \Carbon\Carbon::parse($attendance->date)->format('M d, Y') }}</span>
+                        </td>
+                        <td>
+                            <span style="font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(13, 59, 102, 0.1); color: #0d3b66; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-business-time"></i> Shift {{ $attendance->shift ?? '-' }}
+                            </span>
                         </td>
                         <td>
                             <span class="time-badge">
@@ -237,7 +243,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="text-center" style="padding: 60px 20px; text-align: center;">
+                        <td colspan="7" class="text-center" style="padding: 60px 20px; text-align: center;">
                             <i class="fas fa-calendar-times" style="font-size: 48px; color: #cbd5e1; margin-bottom: 16px; display: block;"></i>
                             <h4 style="color: #475569; margin-bottom: 8px;">No records found</h4>
                             <p style="color: #94a3b8; margin: 0;">Try adjusting your filters or add a new record.</p>
