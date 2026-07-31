@@ -563,39 +563,6 @@ class AbsenceController extends Controller
         return response()->json($filtered->take(10)->values());
     }
 
-    public function settings()
-    {
-        $settings = Setting::pluck('value', 'key')->toArray();
-        $defaults = [
-            'attendance_in_start' => '07:00',
-            'attendance_in_end' => '09:00',
-            'attendance_out_start' => '16:00',
-            'attendance_out_end' => '18:00',
-        ];
-        $settings = array_merge($defaults, $settings);
-
-        return view('absence-settings', compact('settings'));
-    }
-
-    public function updateSettings(Request $request)
-    {
-        $request->validate([
-            'attendance_in_start' => 'required|date_format:H:i',
-            'attendance_in_end' => 'required|date_format:H:i',
-            'attendance_out_start' => 'required|date_format:H:i',
-            'attendance_out_end' => 'required|date_format:H:i',
-        ]);
-
-        Setting::updateOrCreate(['key' => 'attendance_in_start'], ['value' => $request->attendance_in_start]);
-        Setting::updateOrCreate(['key' => 'attendance_in_end'], ['value' => $request->attendance_in_end]);
-        Setting::updateOrCreate(['key' => 'attendance_out_start'], ['value' => $request->attendance_out_start]);
-        Setting::updateOrCreate(['key' => 'attendance_out_end'], ['value' => $request->attendance_out_end]);
-
-        cache()->forget('app_settings');
-
-        return redirect()->back()->with('success', 'Attendance settings updated successfully!');
-    }
-
     public function getAllUsers()
     {
         $users = User::select('name')->orderBy('name', 'asc')->get();

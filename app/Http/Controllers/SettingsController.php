@@ -93,12 +93,33 @@ class SettingsController extends Controller
     public function updateAbsenceTime(Request $request)
     {
         $request->validate([
-            'shifts' => 'required|array|min:1',
+            'shifts' => 'required|array|min:1|max:20',
             'shifts.*.in_start' => 'required|date_format:H:i',
             'shifts.*.in_end' => 'required|date_format:H:i',
             'shifts.*.out_start' => 'required|date_format:H:i',
             'shifts.*.out_end' => 'required|date_format:H:i',
         ]);
+
+        // Validate Shift Overlaps
+        $spans = [];
+        foreach (array_values($request->shifts) as $i => $s) {
+            $spans[] = ['num' => $i + 1, 'start' => $s['in_start'], 'end' => $s['out_start']];
+        }
+
+        foreach ($spans as $a) {
+            foreach ($spans as $b) {
+                if ($a['num'] >= $b['num']) continue;
+
+                // Skip pairs involving night shifts (spans midnight)
+                if ($a['end'] < $a['start'] || $b['end'] < $b['start']) continue;
+
+                if ($a['start'] < $b['end'] && $b['start'] < $a['end']) {
+                    return back()->withInput()->withErrors([
+                        'shifts' => "Shift {$a['num']} dan shift {$b['num']} saling tumpang tindih. Shift dengan nomor lebih besar tidak akan pernah aktif."
+                    ]);
+                }
+            }
+        }
 
         $totalShifts = count($request->shifts);
         $this->putSetting('total_shifts', $totalShifts);
