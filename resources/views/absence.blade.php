@@ -690,9 +690,22 @@
         // Shuffle the challenges to make it random
         remainingChallenges.sort(() => Math.random() - 0.5);
         
+        // 30-second Overall Timeout (gives user plenty of relaxed time for liveness)
+        if (livenessTimeoutTimer) clearTimeout(livenessTimeoutTimer);
+        livenessTimeoutTimer = setTimeout(() => {
+            if (isModalOpen || livenessActive) {
+                closeModal();
+                showToast('Liveness dibatalkan: Waktu habis (30 detik)', 'info');
+            }
+        }, 30000);
+
+        consecutiveEmptyCount = 0;
+
         updateChallengeDots();
         nextLivenessChallenge();
     }
+
+    let consecutiveEmptyCount = 0;
 
     function nextLivenessChallenge() {
         if (!livenessActive) return;
@@ -702,12 +715,63 @@
             document.getElementById('liveness-overlay-card').style.display = 'none';
             livenessActive = false;
             
+            // Capture the fresh post-liveness frame
+            capturePhoto();
+
             if (isManualFlow) {
                 // For manual flow, record attendance directly
                 recordAttendance(detectedUserId || detectedUser);
                 closeModal();
+            } else if (detectedUserId) {
+                // Biometric Cross-Verification: Verify that the person who completed liveness is the SAME user!
+                statusDisplay.innerHTML = '<i class="fas fa-user-shield text-accent"></i> <span>Cross-verifying identity...</span>';
+                fetch('{{ route("absence.analyze") }}', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ image: lastCapturedImage })
+                })
+                .then(res => res.json())
+                .then(verifyData => {
+                    if (verifyData.status === 'success' && verifyData.user_id === detectedUserId) {
+                        // Identity match confirmed!
+                        isModalOpen = true;
+                        document.getElementById('detected-name').innerText = detectedUser;
+                        document.getElementById('confirm-modal').style.display = 'flex';
+                        document.getElementById('detection-view').style.display = 'block';
+                        document.getElementById('manual-search-section').style.display = 'none';
+                        document.getElementById('liveness-challenge').style.display = 'none';
+                        statusDisplay.innerHTML = '<i class="fas fa-pause-circle text-warning"></i> <span>Waiting for confirmation...</span>';
+                    } else if (verifyData.status === 'success' && verifyData.user_id && verifyData.user_id !== detectedUserId) {
+                        // CLEAR SWAP DETECTED: Face is explicitly another registered user!
+                        closeModal();
+                        showToast('🛡️ Pelanggaran Keamanan: Wajah saat liveness berbeda dengan akun terdeteksi! Presensi dibatalkan.', 'error');
+                        statusDisplay.innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i> <span>Identity Swap Detected!</span>';
+                    } else {
+                        // Normal user with slight angle/illumination variation post-turn: Allow confirmation modal
+                        isModalOpen = true;
+                        document.getElementById('detected-name').innerText = detectedUser;
+                        document.getElementById('confirm-modal').style.display = 'flex';
+                        document.getElementById('detection-view').style.display = 'block';
+                        document.getElementById('manual-search-section').style.display = 'none';
+                        document.getElementById('liveness-challenge').style.display = 'none';
+                        statusDisplay.innerHTML = '<i class="fas fa-pause-circle text-warning"></i> <span>Waiting for confirmation...</span>';
+                    }
+                })
+                .catch(err => {
+                    console.error('Cross-verification error:', err);
+                    // Proceed to confirmation modal even if network glitch occurs
+                    isModalOpen = true;
+                    document.getElementById('detected-name').innerText = detectedUser;
+                    document.getElementById('confirm-modal').style.display = 'flex';
+                    document.getElementById('detection-view').style.display = 'block';
+                    document.getElementById('manual-search-section').style.display = 'none';
+                    document.getElementById('liveness-challenge').style.display = 'none';
+                    statusDisplay.innerHTML = '<i class="fas fa-pause-circle text-warning"></i> <span>Waiting for confirmation...</span>';
+                });
             } else {
-                // Show confirmation modal
                 isModalOpen = true;
                 document.getElementById('detected-name').innerText = detectedUser;
                 document.getElementById('confirm-modal').style.display = 'flex';
@@ -732,15 +796,6 @@
         document.getElementById('liveness-instruction').innerText = instructions[currentChallenge] || 'Silakan Kedipkan Mata Anda 👁️';
         
         updateChallengeDots();
-
-        // 15-second Inactivity Timeout to auto-cancel liveness if user walks away
-        if (livenessTimeoutTimer) clearTimeout(livenessTimeoutTimer);
-        livenessTimeoutTimer = setTimeout(() => {
-            if (isModalOpen || livenessActive) {
-                closeModal();
-                showToast('Liveness dibatalkan: Tidak ada aktivitas / Waktu habis', 'info');
-            }
-        }, 15000);
 
         livenessFrames = [];
         let progress = 0;
@@ -794,7 +849,9 @@
                 let friendlyMsg = 'Aksi belum terdeteksi jelas. Silakan coba lagi.';
                 const rawMsg = data.message || '';
                 
-                if (rawMsg.includes('Blink not detected')) {
+                if (rawMsg.includes('No face detected') || rawMsg.includes('tidak terdeteksi')) {
+                    friendlyMsg = '📹 Wajah tidak terdeteksi. Posisikan wajah di depan kamera.';
+                } else if (rawMsg.includes('Blink not detected')) {
                     friendlyMsg = '👁️ Kedipan belum terdeteksi jelas. Kedipkan mata lebih tegas.';
                 } else if (rawMsg.includes('Left turn not detected')) {
                     friendlyMsg = '⬅️ Tolehan ke kiri kurang jelas. Tolehkan kepala lebih mantap ke kiri.';
@@ -809,10 +866,10 @@
                 }
 
                 showToast(friendlyMsg, 'error');
-                // Retry same challenge
+                // Quiet retry of the same challenge until 15s timeout expires
                 setTimeout(() => {
                     nextLivenessChallenge();
-                }, 1500);
+                }, 1200);
             }
         } catch (e) {
             console.error(e);
