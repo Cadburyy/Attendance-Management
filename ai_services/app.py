@@ -257,9 +257,9 @@ def verify_liveness():
                 elif challenge in ['turn_left', 'turn_right']:
                     turn_ratios.append(ratio)
         
-        # 1. Strict Detection Rate Check
-        if detected_count < 13:
-            return jsonify({'status': 'failed', 'message': f'Spoofing Terdeteksi: Pergerakan wajah terputus atau kamera terhalang (Deteksi: {detected_count}/15 frame)'})
+        # 1. Empty Frame Check (Only fail if NO face/person was detected at all)
+        if detected_count == 0:
+            return jsonify({'status': 'failed', 'message': 'No face detected in any of the frames'}), 200
  
         if challenge == 'blink':
             if not ear_values:
