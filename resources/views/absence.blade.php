@@ -788,10 +788,27 @@
             if (data.status === 'passed') {
                 challengeStatus[currentChallenge] = 'passed';
                 remainingChallenges.shift();
-                showToast('Tantangan Lolos!', 'success');
+                showToast('✨ Gerakan Berhasil Verifikasi!', 'success');
                 nextLivenessChallenge();
             } else {
-                showToast('Gagal: ' + (data.message || 'Aksi tidak terdeteksi. Silakan coba lagi.'), 'error');
+                let friendlyMsg = 'Aksi belum terdeteksi jelas. Silakan coba lagi.';
+                const rawMsg = data.message || '';
+                
+                if (rawMsg.includes('Blink not detected')) {
+                    friendlyMsg = '👁️ Kedipan belum terdeteksi jelas. Kedipkan mata lebih tegas.';
+                } else if (rawMsg.includes('Left turn not detected')) {
+                    friendlyMsg = '⬅️ Tolehan ke kiri kurang jelas. Tolehkan kepala lebih mantap ke kiri.';
+                } else if (rawMsg.includes('Right turn not detected')) {
+                    friendlyMsg = '➡️ Tolehan ke kanan kurang jelas. Tolehkan kepala lebih mantap ke kanan.';
+                } else if (rawMsg.includes('Spoofing Terdeteksi')) {
+                    friendlyMsg = '🛡️ Gerakan tidak alami / Spoofing terdeteksi. Jaga posisi wajah tetap stabil.';
+                } else if (rawMsg.includes('statis')) {
+                    friendlyMsg = '📸 Wajah terdeteksi diam/statis. Silakan lakukan gerakan aktif.';
+                } else if (rawMsg.includes('terputus') || rawMsg.includes('terhalang')) {
+                    friendlyMsg = '📹 Kamera sempat terhalang atau wajah hilang dari bingkai.';
+                }
+
+                showToast(friendlyMsg, 'error');
                 // Retry same challenge
                 setTimeout(() => {
                     nextLivenessChallenge();
@@ -799,7 +816,7 @@
             }
         } catch (e) {
             console.error(e);
-            showToast('Koneksi Liveness terputus. Mencoba lagi...', 'error');
+            showToast('⚠️ Koneksi server Liveness terputus. Mencoba lagi...', 'error');
             setTimeout(() => {
                 nextLivenessChallenge();
             }, 1500);

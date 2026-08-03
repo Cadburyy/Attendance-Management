@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 
 class UserController extends Controller
 {
@@ -118,7 +119,13 @@ class UserController extends Controller
             }
             $input['picture_hash'] = $pictureHash;
 
-            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
+            $embedding = $this->getFaceEmbedding($request->file('picture'));
+            if ($embedding === null) {
+                throw ValidationException::withMessages([
+                    'picture' => ['Wajah tidak terdeteksi pada foto, atau AI service tidak aktif. Gunakan foto dengan wajah menghadap kamera, dan pastikan AI service berjalan.']
+                ]);
+            }
+            $input['face_embedding'] = $embedding;
 
             // Envelope Encryption (KEK/DEK, AES-256-CBC)
             $input['picture'] = $this->encryptWithDEK($base64Image);
@@ -137,6 +144,8 @@ class UserController extends Controller
             }
             throw $e;
         }
+
+        Cache::forget('user_face_embeddings');
 
         return redirect()->route('users.index')->with('success', 'User created successfully with secured AI face data.');
     }
@@ -244,7 +253,13 @@ class UserController extends Controller
             }
             $input['picture_hash'] = $pictureHash;
 
-            $input['face_embedding'] = $this->getFaceEmbedding($request->file('picture'));
+            $embedding = $this->getFaceEmbedding($request->file('picture'));
+            if ($embedding === null) {
+                throw ValidationException::withMessages([
+                    'picture' => ['Wajah tidak terdeteksi pada foto, atau AI service tidak aktif. Gunakan foto dengan wajah menghadap kamera, dan pastikan AI service berjalan.']
+                ]);
+            }
+            $input['face_embedding'] = $embedding;
 
             $input['picture'] = $this->encryptWithDEK($base64Image);
         }
@@ -262,6 +277,8 @@ class UserController extends Controller
             }
             throw $e;
         }
+
+        Cache::forget('user_face_embeddings');
         
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
     }
@@ -273,6 +290,7 @@ class UserController extends Controller
         if ($response = $this->checkAdminITProtection($user)) return $response;
         
         $user->delete();
+        Cache::forget('user_face_embeddings');
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');
     }
 

@@ -149,9 +149,9 @@ def represent():
         if frame is None:
             return jsonify({'error': 'Invalid image'}), 400
 
-        embeddings = get_face_embeddings_with_fallbacks(frame, enforce_detection=False)
+        embeddings = get_face_embeddings_with_fallbacks(frame, enforce_detection=True)
         
-        if len(embeddings) > 0:
+        if embeddings and len(embeddings) > 0:
             return jsonify({'status': 'success', 'embedding': embeddings[0]['embedding']})
         else:
             return jsonify({'status': 'error', 'message': 'No face detected'})
